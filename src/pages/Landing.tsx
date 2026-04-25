@@ -1,0 +1,76 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
+import { Flame, ArrowRight, ShieldCheck } from 'lucide-react';
+
+export default function Landing() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center bg-brand-black p-6">
+      {/* Background Decorative Element */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-accent/5 rounded-full blur-[120px] pointer-events-none" />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="max-w-4xl w-full text-center relative z-10"
+      >
+        <div className="flex justify-center mb-8">
+          <motion.div 
+            whileHover={{ scale: 1.05 }}
+            className="w-20 h-20 rounded-3xl bg-brand-accent flex items-center justify-center shadow-2xl shadow-brand-accent/20"
+          >
+            <Flame size={40} className="text-brand-black" />
+          </motion.div>
+        </div>
+
+        <h1 className="text-6xl md:text-9xl font-black mb-4 leading-[0.8] tracking-tighter">
+          THE CREATIVE <br/> <span className="text-brand-accent">REVIEW</span>
+        </h1>
+        
+        <p className="text-xl md:text-2xl font-bold uppercase tracking-[0.2em] mb-12 text-gray-400">
+          No fake likes. <span className="text-white">Just real critique.</span>
+        </p>
+
+        <div className="max-w-2xl mx-auto mb-16 px-4">
+          <p className="text-lg md:text-xl text-gray-300 leading-relaxed font-medium">
+            An invite-only collective where photographers, models, MUAs, and creators get real about their work. No algorithms, no influencers, just raw growth.
+          </p>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <button 
+            onClick={() => navigate('/invite')}
+            className="px-10 py-5 bg-white text-brand-black rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-brand-accent transition-all flex items-center justify-center gap-2"
+          >
+            I Have a Code <ArrowRight size={18} />
+          </button>
+          <button 
+            onClick={() => navigate('/invite')}
+            className="px-10 py-5 bg-transparent border-2 border-white/20 text-white rounded-2xl font-black uppercase text-sm tracking-widest hover:border-white transition-all"
+          >
+            Request an Invite
+          </button>
+        </div>
+
+        <div className="mt-16 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-widest text-gray-500">
+          <ShieldCheck size={16} /> 18+ SECURE COMMUNITY • EST. 2024
+        </div>
+      </motion.div>
+
+      {/* Floating labels */}
+      <div className="absolute bottom-10 left-10 md:block hidden animate-pulse">
+        <span className="text-[10px] uppercase font-bold tracking-[0.5em] text-white/20 vertical-rl transform rotate-180">
+          RAW FEEDBACK ONLY
+        </span>
+      </div>
+      <div className="absolute top-10 right-10 md:block hidden animate-bounce">
+        <span className="text-[10px] uppercase font-bold tracking-[0.5em] text-brand-accent/20 vertical-rl">
+          ESTABLISHED IN CHAOS
+        </span>
+      </div>
+    </div>
+  );
+}

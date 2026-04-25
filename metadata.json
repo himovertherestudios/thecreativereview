@@ -1,0 +1,10 @@
+{
+  "name": "The Creative Review",
+  "description": "An invite-only, 18+ creative critique community for photographers, models, makeup artists, and creatives. Raw feedback, honest venting, and community-driven growth.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "image-upload"
+  ]
+}
