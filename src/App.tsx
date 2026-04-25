@@ -1,5 +1,4 @@
 import React from 'react';
-import { testSupabaseConnection } from './lib/testSupabase';
 import {
   BrowserRouter,
   Routes,
@@ -34,6 +33,7 @@ import VentRoom from './pages/VentRoom';
 import VentDetail from './pages/VentDetail';
 import Profile from './pages/Profile';
 import Supporter from './pages/Supporter';
+import Login from './pages/Login';
 
 type AppNavLinkProps = {
   to: string;
@@ -42,7 +42,14 @@ type AppNavLinkProps = {
   active: boolean;
 };
 
-const AUTH_ROUTES = ['/', '/invite', '/signup', '/consent', '/starter-upload'];
+const AUTH_ROUTES = [
+  '/',
+  '/invite',
+  '/signup',
+  '/login',
+  '/consent',
+  '/starter-upload',
+];
 
 function isActiveRoute(pathname: string, route: string) {
   if (route === '/feed') {
@@ -76,8 +83,8 @@ function DesktopNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
     <Link
       to={to}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
-        ? 'bg-brand-accent text-brand-black font-bold uppercase'
-        : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
+          ? 'bg-brand-accent text-brand-black font-bold uppercase'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
         }`}
     >
       <Icon size={20} />
@@ -235,8 +242,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-
-
   return (
     <BrowserRouter>
       <AppLayout>
@@ -244,6 +249,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/invite" element={<InviteCode />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/consent" element={<Consent />} />
           <Route path="/starter-upload" element={<StarterUpload />} />
 

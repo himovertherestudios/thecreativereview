@@ -746,6 +746,7 @@ export default function VentDetail() {
 
                 setRealVent(
                     mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow)
+
                 );
             }
         } catch (error) {
