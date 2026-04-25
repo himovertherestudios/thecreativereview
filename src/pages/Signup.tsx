@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   User,
@@ -35,6 +35,8 @@ const EXPERIENCE_LEVELS: ExperienceLevel[] = [
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteCodeFromUrl = searchParams.get('code') || '';
 
   const [form, setForm] = useState({
     displayName: '',
@@ -44,7 +46,7 @@ export default function Signup() {
     password: '',
     city: '',
     customRoleTitle: '',
-    inviteCode: '',
+    inviteCode: inviteCodeFromUrl,
   });
 
   const [role, setRole] = useState<CreativeRole | ''>('');

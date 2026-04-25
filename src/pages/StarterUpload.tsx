@@ -261,10 +261,7 @@ export default function StarterUpload() {
           <p className="text-gray-400 font-medium max-w-2xl text-sm md:text-base leading-relaxed">
             Upload your first piece of work so the community has something to
             review. No pressure. Just bring one frame worth talking about.
-            <span className="text-brand-accent block mt-3 font-bold uppercase text-xs tracking-widest">
-              • Uploaded to Supabase Storage • Protected preview watermark shown
-              in prototype mode •
-            </span>
+
           </p>
         </header>
 
@@ -281,8 +278,8 @@ export default function StarterUpload() {
           <section>
             <div
               className={`relative aspect-[4/5] md:aspect-[3/4] rounded-3xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden ${starterImage.url
-                  ? 'border-solid border-brand-accent'
-                  : 'border-white/10 bg-brand-gray hover:bg-white/5 cursor-pointer'
+                ? 'border-solid border-brand-accent'
+                : 'border-white/10 bg-brand-gray hover:bg-white/5 cursor-pointer'
                 }`}
               onClick={() => !starterImage.url && handleOpenFilePicker()}
             >
@@ -402,8 +399,8 @@ export default function StarterUpload() {
 
                     <span
                       className={`w-6 h-6 rounded-full border flex items-center justify-center ${starterImage.rating === rating
-                          ? 'bg-white text-black border-white'
-                          : 'border-current opacity-40'
+                        ? 'bg-white text-black border-white'
+                        : 'border-current opacity-40'
                         }`}
                     >
                       {starterImage.rating === rating && (
@@ -436,16 +433,16 @@ export default function StarterUpload() {
                       type="button"
                       onClick={() => updateStarterImage({ honesty: level })}
                       className={`min-h-[56px] w-full py-4 text-[11px] font-black uppercase border rounded-2xl transition-all text-left px-5 flex items-center justify-between ${isSelected
-                          ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                          : 'border-white/10 text-gray-300 hover:border-white/30'
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-white/10 text-gray-300 hover:border-white/30'
                         }`}
                     >
                       {level}
 
                       <span
                         className={`w-6 h-6 rounded-full border flex items-center justify-center ${isSelected
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/20'
+                          ? 'bg-brand-accent border-brand-accent text-brand-black'
+                          : 'border-white/20'
                           }`}
                       >
                         {isSelected && <Check size={13} strokeWidth={4} />}
@@ -473,8 +470,8 @@ export default function StarterUpload() {
                       type="button"
                       onClick={() => toggleCategory(category)}
                       className={`px-4 py-3 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${isSelected
-                          ? 'bg-white text-brand-black border-white'
-                          : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
+                        ? 'bg-white text-brand-black border-white'
+                        : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
                         }`}
                     >
                       {category}

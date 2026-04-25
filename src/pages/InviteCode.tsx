@@ -61,7 +61,7 @@ export default function InviteCode() {
     const cleanedCode = code.trim();
 
     if (cleanedCode.length >= 4) {
-      navigate('/signup');
+      navigate(`/signup?code=${encodeURIComponent(cleanedCode.toLowerCase())}`);
     }
   };
 
@@ -256,8 +256,8 @@ export default function InviteCode() {
                         type="button"
                         onClick={() => handleRequestChange('role', role)}
                         className={`w-full min-h-[60px] rounded-2xl border p-4 text-left transition-all flex items-center justify-between ${isSelected
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'bg-brand-gray border-white/10 text-white hover:border-brand-accent'
+                          ? 'bg-brand-accent border-brand-accent text-brand-black'
+                          : 'bg-brand-gray border-white/10 text-white hover:border-brand-accent'
                           }`}
                       >
                         <div className="flex items-center gap-3">
@@ -275,8 +275,8 @@ export default function InviteCode() {
 
                         <span
                           className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected
-                              ? 'bg-brand-black/10 border-brand-black text-brand-black'
-                              : 'border-white/20'
+                            ? 'bg-brand-black/10 border-brand-black text-brand-black'
+                            : 'border-white/20'
                             }`}
                         >
                           {isSelected && <Check size={13} strokeWidth={4} />}
