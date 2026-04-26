@@ -1,49 +1,59 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background: #0A0A0A;
-  color: white;
-  font-family: 'Inter', system-ui, sans-serif;
-  margin: 0;
-  min-height: 100vh;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: 'Outfit', system-ui, sans-serif;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
-}
-
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.shimmer {
-  background: linear-gradient(90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.05) 50%,
-      rgba(255, 255, 255, 0) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
+@layer base {
+  body {
+    @apply bg-crtr-black text-white antialiased;
   }
 
-  100% {
-    background-position: 200% 0;
+  * {
+    @apply border-crtr-border;
+  }
+}
+
+@layer components {
+  .crtr-page {
+    @apply min-h-screen bg-crtr-black text-white;
+  }
+
+  .crtr-card {
+    @apply rounded-card border border-white/10 bg-crtr-surface shadow-card;
+  }
+
+  .crtr-card-hover {
+    @apply transition duration-200 hover:-translate-y-1 hover:border-crtr-orange/40 hover:shadow-glow;
+  }
+
+  .crtr-button-primary {
+    @apply rounded-button bg-crtr-orange px-5 py-3 font-semibold text-white transition hover:brightness-110 active:scale-95 disabled:opacity-40;
+  }
+
+  .crtr-button-secondary {
+    @apply rounded-button border border-white/15 bg-transparent px-5 py-3 font-semibold text-white transition hover:border-crtr-orange hover:text-crtr-orange active:scale-95;
+  }
+
+  .crtr-input {
+    @apply w-full rounded-button border border-white/10 bg-crtr-surface px-4 py-3 text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
+  }
+
+  .crtr-label {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-white/50;
+  }
+
+  .crtr-badge {
+    @apply inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80;
+  }
+
+  .crtr-image-card {
+    @apply crtr-card crtr-card-hover relative aspect-[4/5] overflow-hidden;
+  }
+
+  .crtr-image-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent;
+  }
+
+  .crtr-bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-crtr-black/90 backdrop-blur-xl;
   }
 }

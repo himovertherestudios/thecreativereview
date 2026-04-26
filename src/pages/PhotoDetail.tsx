@@ -187,7 +187,6 @@ export default function PhotoDetail() {
     setPageError('');
 
     try {
-      // 1. Load the photo by ID first
       const { data: photoData, error: photoError } = await supabase
         .from('photos')
         .select(
@@ -208,44 +207,47 @@ export default function PhotoDetail() {
         .eq('id', id)
         .maybeSingle();
 
-      if (photoError) {
-        throw photoError;
-      }
+      if (photoError) throw photoError;
 
-      // If no Supabase photo exists, use fake fallback
       if (!photoData) {
         setRealPhoto(null);
         setRealCritiques([]);
+        setPageError('No live photo found for this ID');
         return;
       }
 
-      // 2. Load the creator profile separately
-      const { data: profileData, error: profileError } = await supabase
+      let profileData = null;
+
+      const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .select(
           `
         display_name,
         username,
         instagram_handle,
-        role,
-        avatar_url
+        role
       `
         )
         .eq('id', photoData.user_id)
         .maybeSingle();
 
-      if (profileError) {
-        throw profileError;
+      if (!profileError) {
+        profileData = profileResult;
       }
 
       const mappedPhoto = mapSupabasePhotoToReviewRequest({
         ...(photoData as unknown as Omit<SupabasePhotoRow, 'profiles'>),
-        profiles: profileData || null,
+        profiles: {
+          display_name: profileData?.display_name || null,
+          username: profileData?.username || null,
+          instagram_handle: profileData?.instagram_handle || null,
+          role: profileData?.role || null,
+          avatar_url: null,
+        },
       } as SupabasePhotoRow);
 
       setRealPhoto(mappedPhoto);
 
-      // 3. Load critiques for this photo
       const { data: critiqueData, error: critiqueError } = await supabase
         .from('critiques')
         .select(
@@ -265,9 +267,7 @@ export default function PhotoDetail() {
         .eq('photo_id', id)
         .order('created_at', { ascending: false });
 
-      if (critiqueError) {
-        throw critiqueError;
-      }
+      if (critiqueError) throw critiqueError;
 
       const mappedCritiques = (critiqueData || []).map((critique) =>
         mapSupabaseCritiqueToCritique(
