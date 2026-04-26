@@ -136,8 +136,8 @@ function DesktopNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
     <Link
       to={to}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
-          ? 'bg-brand-accent text-brand-black font-bold uppercase'
-          : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
+        ? 'bg-brand-accent text-brand-black font-bold uppercase'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
         }`}
     >
       <Icon size={20} />
@@ -173,6 +173,18 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     };
 
     loadCurrentUserProfile();
+
+    window.addEventListener(
+      'creative-review-avatar-updated',
+      loadCurrentUserProfile
+    );
+
+    return () => {
+      window.removeEventListener(
+        'creative-review-avatar-updated',
+        loadCurrentUserProfile
+      );
+    };
   }, [location.pathname]);
 
   const profileImage =
@@ -494,7 +506,18 @@ function AppRoutes() {
           }
         />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            isAuthLoading ? (
+              <AuthLoadingScreen />
+            ) : session ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
       </Routes>
     </AppLayout>
   );

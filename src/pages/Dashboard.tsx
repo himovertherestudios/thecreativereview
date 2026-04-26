@@ -49,9 +49,12 @@ function getPublicPhotoUrl(value: string | null | undefined) {
   if (isFullUrl(value)) return value;
 
   const cleanPath = value
+    .trim()
     .replace(/^\/+/, '')
     .replace(/^photos\//, '')
     .replace(/^public\//, '');
+
+  if (!cleanPath) return '';
 
   const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
 
@@ -82,7 +85,7 @@ function SwipeCard({ title, icon: Icon, children }: CardProps) {
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="snap-center shrink-0 w-[84vw] max-w-[360px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[430px]"
+      className="snap-start shrink-0 w-[86vw] max-w-[380px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[420px] shadow-2xl shadow-black/20"
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[10px] font-black tracking-widest text-gray-400 uppercase flex items-center gap-2">
@@ -91,7 +94,7 @@ function SwipeCard({ title, icon: Icon, children }: CardProps) {
         </h3>
       </div>
 
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 min-h-0">{children}</div>
     </motion.section>
   );
 }
@@ -276,6 +279,9 @@ export default function Dashboard() {
             }`}
           draggable={false}
           onContextMenu={(event) => event.preventDefault()}
+          onError={(event) => {
+            event.currentTarget.src = FALLBACK_TIP_BG;
+          }}
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
@@ -307,18 +313,30 @@ export default function Dashboard() {
   );
 
   const challengeCard = (
-    <div className="h-full flex items-center">
-      <div className="w-full text-center py-8 px-4 bg-brand-accent/5 rounded-2xl border border-brand-accent/10">
-        <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent mb-2">
+    <div className="h-full flex flex-col justify-between rounded-3xl border border-brand-accent/20 bg-gradient-to-br from-brand-accent/15 via-brand-gray to-brand-black p-5 overflow-hidden relative">
+      <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-brand-accent/10 blur-3xl" />
+      <div className="absolute -bottom-20 -left-20 w-44 h-44 rounded-full bg-brand-critique/10 blur-3xl" />
+
+      <div className="relative z-10">
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-accent mb-3">
           Weekly Prompt
         </p>
 
-        <h4 className="text-3xl font-black tracking-tight mb-2">NO COLORS</h4>
+        <h4 className="text-4xl font-black tracking-tighter uppercase leading-none mb-4">
+          No Colors
+        </h4>
 
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
-          Submit one black-and-white edit only. Make the mood do the work.
+        <p className="text-sm font-medium text-gray-300 leading-relaxed">
+          Submit one black-and-white edit only. Make the mood, contrast, and story do the work.
         </p>
       </div>
+
+      <Link
+        to="/submit"
+        className="relative z-10 mt-6 min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+      >
+        Take the challenge <ArrowRight size={14} />
+      </Link>
     </div>
   );
 
@@ -330,7 +348,7 @@ export default function Dashboard() {
           to={`/photo/${request.id}`}
           className="min-h-[64px] flex items-center gap-3 p-3 rounded-2xl bg-brand-black/50 border border-white/5 hover:border-brand-accent/40 transition-all group"
         >
-          <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-brand-black">
+          <div className="w-12 aspect-[4/5] rounded-xl overflow-hidden flex-shrink-0 bg-brand-black">
             <img
               src={request.imageUrl}
               alt={request.caption}
@@ -363,7 +381,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 md:space-y-8 pb-6">
       <div className="md:hidden space-y-4">
-        <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-4 scroll-smooth overscroll-x-contain no-scrollbar">
+        <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-5 scroll-smooth overscroll-x-contain no-scrollbar touch-pan-x">
           <SwipeCard title="Tip of the Day" icon={Zap}>
             {tipCard}
           </SwipeCard>
@@ -385,9 +403,6 @@ export default function Dashboard() {
           </SwipeCard>
         </div>
 
-        <p className="text-center text-[9px] font-black uppercase tracking-[0.25em] text-gray-700">
-          Swipe for more
-        </p>
       </div>
 
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">

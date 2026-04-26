@@ -44,6 +44,14 @@ function getFallbackAvatar(seed: string | null | undefined) {
   return `https://picsum.photos/seed/${seed || 'creative-review-user'}/200/200`;
 }
 
+function addCacheBuster(url: string) {
+  if (!url) return url;
+
+  const separator = url.includes('?') ? '&' : '?';
+
+  return `${url}${separator}v=${Date.now()}`;
+}
+
 export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -153,8 +161,18 @@ export default function Profile() {
         throw new Error('Please upload an image file.');
       }
 
-      const fileExt = file.name.split('.').pop() || 'jpg';
-      const filePath = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+      const maxFileSize = 5 * 1024 * 1024;
+
+      if (file.size > maxFileSize) {
+        throw new Error('Please upload an image smaller than 5MB.');
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const safeFileExt = ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)
+        ? fileExt
+        : 'jpg';
+
+      const filePath = `${user.id}/avatar.${safeFileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -169,7 +187,7 @@ export default function Profile() {
         .from('avatars')
         .getPublicUrl(filePath);
 
-      const publicUrl = publicUrlData.publicUrl;
+      const publicUrl = addCacheBuster(publicUrlData.publicUrl);
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -177,6 +195,8 @@ export default function Profile() {
         .eq('id', user.id);
 
       if (updateError) throw updateError;
+
+      window.dispatchEvent(new Event('creative-review-avatar-updated'));
 
       setProfile((current) =>
         current
@@ -372,8 +392,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('frames')}
             className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'frames'
-                ? 'bg-brand-accent border-brand-accent text-brand-black'
-                : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+              ? 'bg-brand-accent border-brand-accent text-brand-black'
+              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
               }`}
           >
             <Grid size={15} /> Frames
@@ -383,8 +403,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('critiques')}
             className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'critiques'
-                ? 'bg-brand-accent border-brand-accent text-brand-black'
-                : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+              ? 'bg-brand-accent border-brand-accent text-brand-black'
+              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
               }`}
           >
             <History size={15} /> Critiques
