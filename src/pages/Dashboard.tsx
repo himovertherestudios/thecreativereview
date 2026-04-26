@@ -33,6 +33,14 @@ type DailyTip = {
   created_at: string;
 };
 
+type WeeklyChallenge = {
+  id: string;
+  title: string;
+  description: string;
+  is_anonymous: boolean;
+  created_at: string;
+};
+
 const FALLBACK_TIP_BG =
   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
 
@@ -41,6 +49,11 @@ const FALLBACK_VENT_BG =
 
 const FALLBACK_TIP =
   "Before you ask for critique, ask yourself what you actually want feedback on — lighting, posing, editing, styling, or emotion.";
+
+const FALLBACK_CHALLENGE_TITLE = 'No Colors';
+
+const FALLBACK_CHALLENGE_DESCRIPTION =
+  'Submit one black-and-white edit only. Make the mood, contrast, and story do the work.';
 
 function isFullUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -209,6 +222,38 @@ export default function Dashboard() {
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
   const [dailyTip, setDailyTip] = useState(FALLBACK_TIP);
+  const [weeklyChallenge, setWeeklyChallenge] =
+    useState<WeeklyChallenge | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error || !data?.is_admin) {
+        setIsAdmin(false);
+        return;
+      }
+
+      setIsAdmin(true);
+    };
+
+    checkAdminStatus();
+  }, []);
 
   useEffect(() => {
     const loadRandomBackgrounds = async () => {
@@ -225,29 +270,8 @@ export default function Dashboard() {
         return;
       }
 
-      useEffect(() => {
-        const loadDailyTip = async () => {
-          const { data, error } = await supabase
-            .from('tips')
-            .select('id, content, is_anonymous, created_at')
-            .eq('is_approved', true)
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-          if (error || !data || data.length === 0) {
-            setDailyTip(FALLBACK_TIP);
-            return;
-          }
-
-          const selectedTip = pickDailyTip(data as DailyTip[]);
-
-          setDailyTip(selectedTip?.content || FALLBACK_TIP);
-        };
-
-        loadDailyTip();
-      }, []);
-
       const photos = data as PhotoBackground[];
+
       const validPhotos = photos.filter(
         (photo) => photo.watermarked_url || photo.image_url
       );
@@ -268,6 +292,50 @@ export default function Dashboard() {
     };
 
     loadRandomBackgrounds();
+  }, []);
+
+  useEffect(() => {
+    const loadDailyTip = async () => {
+      const { data, error } = await supabase
+        .from('tips')
+        .select('id, content, is_anonymous, created_at')
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error || !data || data.length === 0) {
+        setDailyTip(FALLBACK_TIP);
+        return;
+      }
+
+      const selectedTip = pickDailyTip(data as DailyTip[]);
+
+      setDailyTip(selectedTip?.content || FALLBACK_TIP);
+    };
+
+    loadDailyTip();
+  }, []);
+
+  useEffect(() => {
+    const loadWeeklyChallenge = async () => {
+      const { data, error } = await supabase
+        .from('challenge_suggestions')
+        .select('id, title, description, is_anonymous, created_at')
+        .eq('is_approved', true)
+        .eq('is_selected', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) {
+        setWeeklyChallenge(null);
+        return;
+      }
+
+      setWeeklyChallenge(data as WeeklyChallenge);
+    };
+
+    loadWeeklyChallenge();
   }, []);
 
   const tipCard = (
@@ -357,6 +425,11 @@ export default function Dashboard() {
     </div>
   );
 
+  const challengeTitle = weeklyChallenge?.title || FALLBACK_CHALLENGE_TITLE;
+
+  const challengeDescription =
+    weeklyChallenge?.description || FALLBACK_CHALLENGE_DESCRIPTION;
+
   const challengeCard = (
     <div className="h-full flex flex-col justify-between rounded-3xl border border-brand-accent/20 bg-gradient-to-br from-brand-accent/15 via-brand-gray to-brand-black p-5 overflow-hidden relative">
       <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-brand-accent/10 blur-3xl" />
@@ -368,20 +441,29 @@ export default function Dashboard() {
         </p>
 
         <h4 className="text-4xl font-black tracking-tighter uppercase leading-none mb-4">
-          No Colors
+          {challengeTitle}
         </h4>
 
         <p className="text-sm font-medium text-gray-300 leading-relaxed">
-          Submit one black-and-white edit only. Make the mood, contrast, and story do the work.
+          {challengeDescription}
         </p>
       </div>
 
-      <Link
-        to="/submit"
-        className="relative z-10 mt-6 min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-      >
-        Take the challenge <ArrowRight size={14} />
-      </Link>
+      <div className="relative z-10 mt-6 grid gap-3">
+        <Link
+          to="/submit"
+          className="min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+        >
+          Take the challenge <ArrowRight size={14} />
+        </Link>
+
+        <Link
+          to="/challenge-suggestion"
+          className="min-h-[42px] px-4 py-3 bg-brand-black/60 border border-white/10 text-gray-400 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:text-white hover:border-brand-accent/40 transition-all"
+        >
+          Suggest one
+        </Link>
+      </div>
     </div>
   );
 
@@ -447,7 +529,6 @@ export default function Dashboard() {
             {recentActivityCard}
           </SwipeCard>
         </div>
-
       </div>
 
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
@@ -459,11 +540,7 @@ export default function Dashboard() {
           {ventCard}
         </Card>
 
-        <Card
-          title="Hot Seat"
-          icon={Flame}
-          className="md:row-span-2"
-        >
+        <Card title="Hot Seat" icon={Flame} className="md:row-span-2">
           {hotSeatCard}
         </Card>
 
@@ -476,13 +553,22 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="flex justify-center pt-4">
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
         <Link
           to="/feed"
           className="min-h-[48px] px-6 py-3 rounded-2xl bg-brand-gray border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-gray-400 hover:text-white hover:border-white/20 transition-all"
         >
           View full feed <ArrowRight size={14} />
         </Link>
+
+        {isAdmin && (
+          <Link
+            to="/challenge-admin"
+            className="min-h-[48px] px-6 py-3 rounded-2xl bg-brand-accent text-brand-black border border-brand-accent flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] hover:bg-white transition-all"
+          >
+            Manage challenges <ArrowRight size={14} />
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -37,6 +37,8 @@ import VentDetail from './pages/VentDetail';
 import Profile from './pages/Profile';
 import Supporter from './pages/Supporter';
 import Login from './pages/Login';
+import ChallengeSuggestion from './pages/ChallengeSuggestion';
+import ChallengeAdmin from './pages/ChallengeAdmin';
 
 type AppNavLinkProps = {
   to: string;
@@ -488,6 +490,8 @@ function AppRoutes() {
           }
         />
 
+        <Route path="/challenge-admin" element={<ChallengeAdmin />} />
+
         <Route
           path="/profile"
           element={
@@ -496,6 +500,8 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/challenge-suggestion" element={<ChallengeSuggestion />} />
 
         <Route
           path="/supporter"
