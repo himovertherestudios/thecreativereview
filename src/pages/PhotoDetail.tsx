@@ -78,9 +78,12 @@ function getPublicPhotoUrl(value: string | null | undefined) {
   if (isFullUrl(value)) return value;
 
   const cleanPath = value
+    .trim()
     .replace(/^\/+/, '')
     .replace(/^photos\//, '')
     .replace(/^public\//, '');
+
+  if (!cleanPath) return '';
 
   const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
 
@@ -89,6 +92,12 @@ function getPublicPhotoUrl(value: string | null | undefined) {
 
 function getFallbackImage(seed: string | undefined) {
   return `https://picsum.photos/seed/${seed || 'creative-review'}/900/1200`;
+}
+function getBestPhotoImageUrl(photo: SupabasePhotoRow) {
+  const originalImageUrl = getPublicPhotoUrl(photo.image_url);
+  const watermarkedImageUrl = getPublicPhotoUrl(photo.watermarked_url);
+
+  return originalImageUrl || watermarkedImageUrl || getFallbackImage(photo.id);
 }
 
 function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest {
@@ -99,7 +108,7 @@ function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest
     creatorUsername:
       photo.profiles?.instagram_handle || photo.profiles?.username || 'creative',
     creatorRole: photo.profiles?.role || 'Creative',
-    imageUrl: getPublicPhotoUrl(photo.watermarked_url || photo.image_url),
+    imageUrl: getBestPhotoImageUrl(photo),
     caption: photo.caption || 'Untitled review request',
     contentRating: photo.content_rating,
     feedbackCategories: photo.feedback_categories || [],
@@ -339,7 +348,11 @@ export default function PhotoDetail() {
   }, [id]);
 
   const handleImageError = () => {
-    setDisplayImageUrl(getFallbackImage(photo.id));
+    const fallbackUrl = getFallbackImage(photo.id);
+
+    if (displayImageUrl !== fallbackUrl) {
+      setDisplayImageUrl(fallbackUrl);
+    }
   };
 
   const handleReportContent = async (
@@ -603,10 +616,10 @@ export default function PhotoDetail() {
             <div className="absolute top-4 left-4 z-20">
               <span
                 className={`px-3 py-2 rounded-full text-[8px] font-black uppercase tracking-widest border ${photo.contentRating === 'Safe'
-                    ? 'bg-green-500/20 text-green-300 border-green-500/40'
-                    : photo.contentRating === 'Suggestive'
-                      ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-                      : 'bg-red-500/20 text-red-300 border-red-500/40'
+                  ? 'bg-green-500/20 text-green-300 border-green-500/40'
+                  : photo.contentRating === 'Suggestive'
+                    ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                    : 'bg-red-500/20 text-red-300 border-red-500/40'
                   }`}
               >
                 {photo.contentRating === 'Explicit'
@@ -795,8 +808,8 @@ export default function PhotoDetail() {
                         type="button"
                         onClick={() => setPortfolioReady(value)}
                         className={`min-h-[48px] py-3 text-[10px] font-black tracking-widest border rounded-2xl transition-all uppercase flex items-center justify-center gap-2 ${isSelected
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
+                          ? 'bg-brand-accent border-brand-accent text-brand-black'
+                          : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
                           }`}
                       >
                         {value}
@@ -822,8 +835,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('self')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'self'
-                      ? 'bg-brand-accent border-brand-accent text-brand-black'
-                      : 'border-white/20 text-gray-500 hover:text-white'
+                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                    : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <User size={16} />
@@ -834,8 +847,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('anon')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'anon'
-                      ? 'bg-brand-accent border-brand-accent text-brand-black'
-                      : 'border-white/20 text-gray-500 hover:text-white'
+                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                    : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <EyeOff size={16} />
