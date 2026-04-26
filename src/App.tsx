@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -17,9 +17,12 @@ import {
   Flame,
   ShieldCheck,
   Bell,
+  Loader2,
 } from 'lucide-react';
+import type { Session } from '@supabase/supabase-js';
 
-// Pages
+import { supabase } from './lib/supabase';
+
 import Landing from './pages/Landing';
 import InviteCode from './pages/InviteCode';
 import Signup from './pages/Signup';
@@ -42,6 +45,12 @@ type AppNavLinkProps = {
   active: boolean;
 };
 
+type AuthRouteProps = {
+  session: Session | null;
+  isAuthLoading: boolean;
+  children: React.ReactNode;
+};
+
 const AUTH_ROUTES = [
   '/',
   '/invite',
@@ -61,6 +70,50 @@ function isActiveRoute(pathname: string, route: string) {
   }
 
   return pathname === route;
+}
+
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen bg-brand-black flex items-center justify-center px-6">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <Loader2 size={24} className="animate-spin text-brand-accent" />
+
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500">
+          Loading Creative Review
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PublicOnlyRoute({
+  session,
+  isAuthLoading,
+  children,
+}: AuthRouteProps) {
+  if (isAuthLoading) return <AuthLoadingScreen />;
+
+  if (session) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function ProtectedRoute({
+  session,
+  isAuthLoading,
+  children,
+}: AuthRouteProps) {
+  const location = useLocation();
+
+  if (isAuthLoading) return <AuthLoadingScreen />;
+
+  if (!session) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  return <>{children}</>;
 }
 
 function NavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
@@ -97,21 +150,51 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const hideNav = AUTH_ROUTES.includes(location.pathname);
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCurrentUserProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setAvatarUrl(null);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      setAvatarUrl(data?.avatar_url || null);
+    };
+
+    loadCurrentUserProfile();
+  }, [location.pathname]);
+
+  const profileImage =
+    avatarUrl || 'https://picsum.photos/seed/creative-review-user/100/100';
+
   if (hideNav) {
     return <>{children}</>;
   }
 
   return (
     <div className="flex flex-col min-h-screen pb-20 md:pb-0 md:pl-64">
-      {/* Sidebar for Desktop */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-brand-gray border-r border-white/10 hidden md:flex flex-col p-6 z-40">
         <div className="mb-12">
-          <h1 className="text-xl font-bold leading-tight flex items-center gap-2">
+          <Link
+            to="/dashboard"
+            className="text-xl font-bold leading-tight flex items-center gap-2 hover:text-brand-accent transition-colors"
+          >
             <Flame className="text-brand-accent fill-brand-accent" size={24} />
             <span>
               The Creative <br /> Review
             </span>
-          </h1>
+          </Link>
         </div>
 
         <nav className="flex flex-col gap-2 flex-1">
@@ -161,28 +244,33 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Header for Mobile */}
       <header className="md:hidden sticky top-0 bg-brand-black/80 backdrop-blur-md z-40 border-b border-white/10 px-4 h-16 flex items-center justify-between">
-        <h1 className="text-sm font-bold flex items-center gap-2">
+        <Link
+          to="/dashboard"
+          className="text-sm font-bold flex items-center gap-2 hover:text-brand-accent transition-colors"
+        >
           <Flame className="text-brand-accent fill-brand-accent" size={18} />
           The Creative Review
-        </h1>
+        </Link>
 
         <div className="flex items-center gap-4">
           <Bell size={20} className="text-gray-400" />
 
-          <div className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden">
+          <Link
+            to="/profile"
+            className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden block"
+            aria-label="Go to profile"
+          >
             <img
-              src="https://picsum.photos/seed/alex/100/100"
+              src={profileImage}
               alt="Current user"
               className="w-full h-full object-cover"
               draggable={false}
             />
-          </div>
+          </Link>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-8">
         <AnimatePresence mode="wait">
           <motion.div
@@ -197,7 +285,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Nav for Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-brand-gray/95 border-t border-white/10 px-6 h-20 grid grid-cols-5 items-center z-40 backdrop-blur-lg">
         <NavLink
           to="/dashboard"
@@ -241,32 +328,182 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AppRoutes() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Error loading session:', error.message);
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+
+      setIsAuthLoading(false);
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      setIsAuthLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return (
+    <AppLayout>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <PublicOnlyRoute session={session} isAuthLoading={isAuthLoading}>
+              <Landing />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/invite"
+          element={
+            <PublicOnlyRoute session={session} isAuthLoading={isAuthLoading}>
+              <InviteCode />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/signup"
+          element={
+            <PublicOnlyRoute session={session} isAuthLoading={isAuthLoading}>
+              <Signup />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute session={session} isAuthLoading={isAuthLoading}>
+              <Login />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/consent"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Consent />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/starter-upload"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <StarterUpload />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/feed"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <ReviewFeed />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/submit"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <SubmitReview />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/photo/:id"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <PhotoDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/vents"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <VentRoom />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/vents/:id"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <VentDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/supporter"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Supporter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppLayout>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/invite" element={<InviteCode />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/consent" element={<Consent />} />
-          <Route path="/starter-upload" element={<StarterUpload />} />
-
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/feed" element={<ReviewFeed />} />
-          <Route path="/submit" element={<SubmitReview />} />
-          <Route path="/photo/:id" element={<PhotoDetail />} />
-
-          <Route path="/vents" element={<VentRoom />} />
-          <Route path="/vents/:id" element={<VentDetail />} />
-
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/supporter" element={<Supporter />} />
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

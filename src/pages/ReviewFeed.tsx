@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { MessageSquare, ShieldOff, Eye, Loader2, AlertCircle } from 'lucide-react';
+import {
+  MessageSquare,
+  ShieldOff,
+  Eye,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RECENT_REVIEWS } from '../data';
 import { ContentRating, HonestyLevel, ReviewRequest } from '../types';
@@ -27,6 +33,36 @@ type SupabasePhotoRow = {
   }
   | null;
 };
+
+function isFullUrl(value: string | null | undefined) {
+  if (!value) return false;
+
+  return (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('blob:') ||
+    value.startsWith('data:')
+  );
+}
+
+function getPublicPhotoUrl(value: string | null | undefined) {
+  if (!value) return '';
+
+  if (isFullUrl(value)) return value;
+
+  const cleanPath = value
+    .replace(/^\/+/, '')
+    .replace(/^photos\//, '')
+    .replace(/^public\//, '');
+
+  const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
+
+  return data.publicUrl || '';
+}
+
+function getFallbackImage(seed: string | undefined) {
+  return `https://picsum.photos/seed/${seed || 'creative-review-feed'}/900/1200`;
+}
 
 function getRatingBadgeStyles(rating: ContentRating) {
   if (rating === 'Safe') {
@@ -56,8 +92,8 @@ function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest
   return {
     id: photo.id,
     creatorId: photo.user_id,
-    imageUrl: photo.watermarked_url || photo.image_url,
-    caption: photo.caption || 'Untitled review request',
+    imageUrl: getPublicPhotoUrl(photo.watermarked_url || photo.image_url),
+    caption: photo.caption || 'Untitled critique post',
     contentRating: photo.content_rating,
     feedbackCategories: photo.feedback_categories || [],
     honestyLevel: photo.honesty_level,
@@ -67,6 +103,34 @@ function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest
     creatorName: photo.profiles?.display_name || 'Creative Member',
     creatorRole: photo.profiles?.role || 'Creative',
   };
+}
+
+function FeedImage({
+  request,
+  shouldBlur,
+}: {
+  request: ReviewRequest;
+  shouldBlur: boolean;
+}) {
+  const [imageUrl, setImageUrl] = useState(
+    getPublicPhotoUrl(request.imageUrl) || getFallbackImage(request.id)
+  );
+
+  useEffect(() => {
+    setImageUrl(getPublicPhotoUrl(request.imageUrl) || getFallbackImage(request.id));
+  }, [request.id, request.imageUrl]);
+
+  return (
+    <img
+      src={imageUrl}
+      alt={request.caption}
+      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${shouldBlur ? 'blur-2xl scale-105 grayscale' : ''
+        }`}
+      draggable={false}
+      onError={() => setImageUrl(getFallbackImage(request.id))}
+      onContextMenu={(event) => event.preventDefault()}
+    />
+  );
 }
 
 export default function ReviewFeed() {
@@ -137,7 +201,7 @@ export default function ReviewFeed() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Something went wrong loading the review feed.';
+          : 'Something went wrong loading the feed.';
 
       setFeedError(message);
       setRealFeedItems([]);
@@ -196,23 +260,13 @@ export default function ReviewFeed() {
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-          Latest review requests
-        </p>
-
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-          {realFeedItems.length > 0 ? 'Live Supabase Feed' : 'Fallback Feed'}
-        </p>
-      </div>
-
       {isLoadingRealFeed && (
         <div className="min-h-[160px] bg-brand-gray border border-white/10 rounded-3xl flex items-center justify-center">
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
 
             <span className="text-[10px] font-black uppercase tracking-widest">
-              Loading live review feed...
+              Loading feed...
             </span>
           </div>
         </div>
@@ -226,16 +280,16 @@ export default function ReviewFeed() {
           />
 
           <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-            Live feed error: {feedError}. Showing fallback prototype feed.
+            Feed error: {feedError}. Showing fallback posts.
           </p>
         </div>
       )}
 
       {isUsingFallbackFeed && !feedError && (
-        <div className="p-4 bg-brand-accent/5 border border-brand-accent/10 rounded-2xl">
-          <p className="text-[10px] uppercase font-black tracking-widest text-gray-500 leading-relaxed">
-            No Supabase photos found yet, so the prototype fallback feed is
-            showing. Once starter uploads are saved, live posts will appear here.
+        <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+          <p className="text-[10px] uppercase font-black tracking-widest text-gray-600 leading-relaxed">
+            No uploads found yet. Showing sample posts until the first beta
+            uploads come in.
           </p>
         </div>
       )}
@@ -256,11 +310,11 @@ export default function ReviewFeed() {
                 layout
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-brand-gray border border-white/5 rounded-3xl overflow-hidden hover:border-white/20 transition-all flex flex-col"
+                className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-300 flex flex-col shadow-black/20"
               >
                 <div className="relative aspect-[4/5] bg-brand-black overflow-hidden">
                   {shouldBlur && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[24px] bg-black/45">
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[24px] bg-black/50">
                       <ShieldOff
                         size={36}
                         className="text-brand-critique mb-4"
@@ -271,8 +325,8 @@ export default function ReviewFeed() {
                       </p>
 
                       <p className="text-[11px] text-gray-400 max-w-xs mb-4 leading-relaxed">
-                        This post is marked explicit. Tap reveal to preview, or
-                        open the post to review it.
+                        This post is marked explicit. Reveal the preview or open
+                        the post to review it.
                       </p>
 
                       <button
@@ -286,18 +340,13 @@ export default function ReviewFeed() {
                     </div>
                   )}
 
-                  <img
-                    src={request.imageUrl}
-                    alt={request.caption}
-                    className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${shouldBlur ? 'blur-2xl scale-105' : ''
-                      }`}
-                    draggable={false}
-                    onContextMenu={(event) => event.preventDefault()}
-                  />
+                  <FeedImage request={request} shouldBlur={shouldBlur} />
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent opacity-80 pointer-events-none" />
 
                   <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
                     <span
-                      className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest ${getRatingBadgeStyles(
+                      className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getRatingBadgeStyles(
                         request.contentRating
                       )}`}
                     >
@@ -307,64 +356,62 @@ export default function ReviewFeed() {
                     </span>
 
                     {request.contentRating === 'Suggestive' && (
-                      <span className="px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-200 border border-orange-500/30">
+                      <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-200 border border-orange-500/30">
                         Labeled Only
                       </span>
                     )}
                   </div>
 
                   <div className="absolute bottom-4 left-4 z-20">
-                    <span className="px-2 py-1 bg-black/50 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
+                    <span className="px-2 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
                       Protected Preview
+                    </span>
+                  </div>
+
+                  <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
+                    <MessageSquare size={13} />
+
+                    <span className="text-[10px] font-black">
+                      {request.reviewCount}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-5 flex flex-col gap-4">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-black uppercase tracking-tight line-clamp-2 mb-1">
-                        {request.caption}
-                      </h4>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-black uppercase tracking-tight line-clamp-2 mb-2">
+                      {request.caption}
+                    </h4>
 
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                        By{' '}
-                        <span className="text-white">
-                          {request.creatorName || 'Creative Member'}
-                        </span>{' '}
-                        • {request.creatorRole || 'Creative'}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-brand-accent flex-shrink-0">
-                      <MessageSquare size={14} />
-
-                      <span className="text-xs font-black">
-                        {request.reviewCount}
-                      </span>
-                    </div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
+                      By{' '}
+                      <span className="text-white">
+                        {request.creatorName || 'Creative Member'}
+                      </span>{' '}
+                      • {request.creatorRole || 'Creative'}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
                     {request.feedbackCategories.slice(0, 3).map((category) => (
                       <span
                         key={category}
-                        className="px-2 py-1 bg-white/5 rounded text-[8px] font-black uppercase text-gray-400"
+                        className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400"
                       >
                         {category}
                       </span>
                     ))}
 
                     {request.feedbackCategories.length > 3 && (
-                      <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-black uppercase text-gray-400">
+                      <span className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400">
                         +{request.feedbackCategories.length - 3}
                       </span>
                     )}
 
                     <span
-                      className={`px-2 py-1 rounded text-[8px] font-black uppercase ${request.honestyLevel === 'Cook Me Respectfully'
-                        ? 'bg-brand-critique/10 text-brand-critique'
-                        : 'bg-brand-accent/10 text-brand-accent'
+                      className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${request.honestyLevel === 'Cook Me Respectfully'
+                          ? 'bg-brand-critique/10 text-brand-critique'
+                          : 'bg-brand-accent/10 text-brand-accent'
                         }`}
                     >
                       {request.honestyLevel}
@@ -383,13 +430,13 @@ export default function ReviewFeed() {
       >
         {realFeedItems.length > 0 ? (
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
-            Live feed loaded from Supabase.
+            End of current uploads.
           </p>
         ) : isLoadingMore ? (
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
             <span className="text-[10px] font-black uppercase tracking-widest">
-              Loading more reviews...
+              Loading more posts...
             </span>
           </div>
         ) : (

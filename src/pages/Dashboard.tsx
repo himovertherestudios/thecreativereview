@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Flame,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { RECENT_REVIEWS } from '../data';
 import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 type CardProps = {
   title: string;
@@ -19,12 +20,50 @@ type CardProps = {
   className?: string;
 };
 
+type PhotoBackground = {
+  id: string;
+  image_url: string;
+  watermarked_url: string | null;
+};
+
+const FALLBACK_TIP_BG =
+  'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
+
+const FALLBACK_VENT_BG =
+  'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=80';
+
+function isFullUrl(value: string | null | undefined) {
+  if (!value) return false;
+
+  return (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('blob:') ||
+    value.startsWith('data:')
+  );
+}
+
+function getPublicPhotoUrl(value: string | null | undefined) {
+  if (!value) return '';
+
+  if (isFullUrl(value)) return value;
+
+  const cleanPath = value
+    .replace(/^\/+/, '')
+    .replace(/^photos\//, '')
+    .replace(/^public\//, '');
+
+  const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
+
+  return data.publicUrl || '';
+}
+
 function Card({ title, icon: Icon, children, className = '' }: CardProps) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-6 flex flex-col ${className}`}
+      className={`bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-6 flex flex-col min-h-[320px] ${className}`}
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[10px] font-black tracking-widest text-gray-400 uppercase flex items-center gap-2">
@@ -43,7 +82,7 @@ function SwipeCard({ title, icon: Icon, children }: CardProps) {
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="min-w-[88vw] max-w-[88vw] snap-center bg-brand-gray border border-white/10 rounded-3xl p-5 flex flex-col min-h-[430px]"
+      className="snap-center shrink-0 w-[84vw] max-w-[360px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[430px]"
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[10px] font-black tracking-widest text-gray-400 uppercase flex items-center gap-2">
@@ -57,44 +96,157 @@ function SwipeCard({ title, icon: Icon, children }: CardProps) {
   );
 }
 
+function BackgroundFeatureCard({
+  eyebrow,
+  title,
+  body,
+  button,
+  backgroundUrl,
+  fallbackUrl,
+}: {
+  eyebrow: string;
+  title: string;
+  body?: string;
+  button?: React.ReactNode;
+  backgroundUrl: string;
+  fallbackUrl: string;
+}) {
+  const [currentBackground, setCurrentBackground] = useState(backgroundUrl);
+
+  useEffect(() => {
+    setCurrentBackground(backgroundUrl || fallbackUrl);
+  }, [backgroundUrl, fallbackUrl]);
+
+  return (
+    <div
+      className="relative h-full min-h-[280px] overflow-hidden rounded-3xl border border-white/10 bg-brand-black bg-cover bg-center"
+      style={{ backgroundImage: `url(${currentBackground})` }}
+    >
+      <img
+        src={currentBackground}
+        alt=""
+        className="hidden"
+        onError={() => setCurrentBackground(fallbackUrl)}
+      />
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/20" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%)]" />
+
+      <div className="relative z-10 h-full flex flex-col justify-between p-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-accent mb-3">
+            {eyebrow}
+          </p>
+
+          <h3 className="text-2xl md:text-3xl font-black uppercase leading-none tracking-tight text-white drop-shadow">
+            {title}
+          </h3>
+
+          {body && (
+            <p className="text-sm text-gray-300 font-medium leading-relaxed mt-4 max-w-md">
+              {body}
+            </p>
+          )}
+        </div>
+
+        {button && <div className="mt-6">{button}</div>}
+      </div>
+    </div>
+  );
+}
+
 function getRatingLabel(contentRating: string) {
   if (contentRating === 'Explicit') return 'NSFW';
   return contentRating;
+}
+
+function pickDailyPhoto(photos: PhotoBackground[]) {
+  if (photos.length === 0) return null;
+
+  const today = new Date();
+  const seed =
+    today.getFullYear() * 10000 +
+    (today.getMonth() + 1) * 100 +
+    today.getDate();
+
+  return photos[seed % photos.length];
+}
+
+function pickRandomPhoto(photos: PhotoBackground[]) {
+  if (photos.length === 0) return null;
+  return photos[Math.floor(Math.random() * photos.length)];
 }
 
 export default function Dashboard() {
   const hotSeat = RECENT_REVIEWS[0];
   const recentRequests = RECENT_REVIEWS.slice(1, 4);
 
-  const tipCard = (
-    <div className="flex flex-col gap-5">
-      <div>
-        <p className="text-xl md:text-2xl font-black leading-tight mb-3 tracking-tight uppercase">
-          Don&apos;t fix the color if the composition is dead.
-        </p>
+  const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
+  const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
 
-        <p className="text-sm text-gray-400 font-medium leading-relaxed">
-          Too many creatives spend hours polishing a frame that should have been
-          cut. Kill your darlings early.
-        </p>
-      </div>
-    </div>
+  useEffect(() => {
+    const loadRandomBackgrounds = async () => {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, image_url, watermarked_url')
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error || !data || data.length === 0) {
+        setTipBg(FALLBACK_TIP_BG);
+        setVentBg(FALLBACK_VENT_BG);
+        return;
+      }
+
+      const photos = data as PhotoBackground[];
+      const validPhotos = photos.filter(
+        (photo) => photo.watermarked_url || photo.image_url
+      );
+
+      const dailyPhoto = pickDailyPhoto(validPhotos);
+      const randomPhoto = pickRandomPhoto(validPhotos);
+
+      const dailyUrl = getPublicPhotoUrl(
+        dailyPhoto?.watermarked_url || dailyPhoto?.image_url
+      );
+
+      const randomUrl = getPublicPhotoUrl(
+        randomPhoto?.watermarked_url || randomPhoto?.image_url
+      );
+
+      setTipBg(dailyUrl || FALLBACK_TIP_BG);
+      setVentBg(randomUrl || FALLBACK_VENT_BG);
+    };
+
+    loadRandomBackgrounds();
+  }, []);
+
+  const tipCard = (
+    <BackgroundFeatureCard
+      eyebrow="Tip of the Day"
+      title="Don't fix the color if the composition is dead."
+      body="Too many creatives spend hours polishing a frame that should have been cut. Kill your darlings early."
+      backgroundUrl={tipBg}
+      fallbackUrl={FALLBACK_TIP_BG}
+    />
   );
 
   const ventCard = (
-    <div className="h-full flex flex-col justify-between gap-5">
-      <p className="text-lg font-black leading-tight tracking-tight uppercase">
-        Can we stop asking models to “do something” without giving any
-        direction?
-      </p>
-
-      <Link
-        to="/vents"
-        className="min-h-[46px] px-4 py-3 bg-brand-black border border-white/10 rounded-2xl text-[10px] font-black text-brand-accent uppercase tracking-widest flex items-center justify-center gap-2 hover:border-brand-accent transition-all"
-      >
-        Join the chaos <ArrowRight size={14} />
-      </Link>
-    </div>
+    <BackgroundFeatureCard
+      eyebrow="Vent Room"
+      title="Can we stop asking models to “do something” without giving any direction?"
+      backgroundUrl={ventBg}
+      fallbackUrl={FALLBACK_VENT_BG}
+      button={
+        <Link
+          to="/vents"
+          className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+        >
+          Join the chaos <ArrowRight size={14} />
+        </Link>
+      }
+    />
   );
 
   const hotSeatCard = (
@@ -129,7 +281,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
 
         <div className="absolute top-4 left-4">
-          <span className="px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
+          <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
             Most Discussed
           </span>
         </div>
@@ -210,54 +362,48 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 md:space-y-8 pb-6">
-      {/* Mobile Swipe Dashboard */}
       <div className="md:hidden space-y-4">
-
-
-        <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-4 scrollbar-hide">
+        <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-4 scroll-smooth overscroll-x-contain no-scrollbar">
           <SwipeCard title="Tip of the Day" icon={Zap}>
             {tipCard}
           </SwipeCard>
 
-          <SwipeCard title="Vent of the Day" icon={MessageSquare}>
+          <SwipeCard title="Vent Room" icon={MessageSquare}>
             {ventCard}
           </SwipeCard>
 
-          <SwipeCard title="Frame on the Hot Seat" icon={Flame}>
+          <SwipeCard title="Hot Seat" icon={Flame}>
             {hotSeatCard}
           </SwipeCard>
 
-          <SwipeCard title="Challenge of the Week" icon={TrendingUp}>
+          <SwipeCard title="Challenge" icon={TrendingUp}>
             {challengeCard}
           </SwipeCard>
 
-          <SwipeCard title="Recent Review Requests" icon={HelpCircle}>
+          <SwipeCard title="Recent Activity" icon={HelpCircle}>
             {recentActivityCard}
           </SwipeCard>
         </div>
 
-        <div className="flex justify-center gap-2">
-          {[1, 2, 3, 4, 5].map((dot) => (
-            <span
-              key={dot}
-              className="w-2 h-2 rounded-full bg-white/20"
-              aria-hidden="true"
-            />
-          ))}
-        </div>
+        <p className="text-center text-[9px] font-black uppercase tracking-[0.25em] text-gray-700">
+          Swipe for more
+        </p>
       </div>
 
-      {/* Desktop / Tablet Grid Dashboard */}
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
         <Card title="Tip of the Day" icon={Zap} className="md:col-span-2">
           {tipCard}
         </Card>
 
-        <Card title="Vent of the Day" icon={MessageSquare}>
+        <Card title="Vent Room" icon={MessageSquare}>
           {ventCard}
         </Card>
 
-        <Card title="Frame on the Hot Seat" icon={Flame} className="md:row-span-2">
+        <Card
+          title="Hot Seat"
+          icon={Flame}
+          className="md:row-span-2"
+        >
           {hotSeatCard}
         </Card>
 
@@ -265,7 +411,7 @@ export default function Dashboard() {
           {challengeCard}
         </Card>
 
-        <Card title="Recent Review Requests" icon={HelpCircle}>
+        <Card title="Recent Activity" icon={HelpCircle}>
           {recentActivityCard}
         </Card>
       </div>

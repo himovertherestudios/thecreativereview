@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -20,13 +20,32 @@ export default function Login() {
         password: '',
     });
 
+    const [isCheckingSession, setIsCheckingSession] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [authError, setAuthError] = useState('');
+
+    useEffect(() => {
+        const checkExistingSession = async () => {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            if (session?.user) {
+                navigate('/dashboard', { replace: true });
+                return;
+            }
+
+            setIsCheckingSession(false);
+        };
+
+        checkExistingSession();
+    }, [navigate]);
 
     const canLogin =
         form.email.trim().length > 3 &&
         form.password.trim().length >= 6 &&
-        !isSubmitting;
+        !isSubmitting &&
+        !isCheckingSession;
 
     const handleInputChange = (field: keyof typeof form, value: string) => {
         setForm((current) => ({
@@ -55,7 +74,7 @@ export default function Login() {
                 throw error;
             }
 
-            navigate('/dashboard');
+            navigate('/dashboard', { replace: true });
         } catch (error) {
             const message =
                 error instanceof Error
@@ -68,10 +87,24 @@ export default function Login() {
         }
     };
 
+    if (isCheckingSession) {
+        return (
+            <div className="min-h-screen bg-brand-black flex items-center justify-center">
+                <div className="flex items-center gap-3 text-gray-500">
+                    <Loader2 size={20} className="animate-spin" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">
+                        Checking session...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-brand-black px-4 py-6 md:p-6 flex items-center justify-center">
             <div className="max-w-md w-full">
                 <button
+                    type="button"
                     onClick={() => navigate('/')}
                     className="mb-8 min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors uppercase text-xs font-bold tracking-widest"
                 >

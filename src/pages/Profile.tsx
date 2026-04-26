@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Instagram,
@@ -9,27 +9,61 @@ import {
   Settings,
   ShieldCheck,
   Grid,
-  MessageSquare,
   History,
   ArrowRight,
   Camera,
   ExternalLink,
   Globe,
+  Loader2,
+  Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FAKE_USER, RECENT_REVIEWS } from '../data';
+import { supabase } from '../lib/supabase';
 
 type ProfileTab = 'frames' | 'critiques';
+
+type UserProfile = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  instagram_handle: string | null;
+  role: string | null;
+  city: string | null;
+  bio: string | null;
+  website: string | null;
+  avatar_url: string | null;
+};
 
 function getRatingLabel(contentRating: string) {
   if (contentRating === 'Explicit') return 'NSFW';
   return contentRating;
 }
 
-export default function Profile() {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('frames');
+function getFallbackAvatar(seed: string | null | undefined) {
+  return `https://picsum.photos/seed/${seed || 'creative-review-user'}/200/200`;
+}
 
-  const instagramUrl = `https://www.instagram.com/${FAKE_USER.username}`;
+export default function Profile() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [activeTab, setActiveTab] = useState<ProfileTab>('frames');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState('');
+
+  const displayName = profile?.display_name || FAKE_USER.displayName;
+  const username =
+    profile?.instagram_handle || profile?.username || FAKE_USER.username;
+  const avatarUrl =
+    profile?.avatar_url || FAKE_USER.avatarUrl || getFallbackAvatar(profile?.id);
+  const role = profile?.role || FAKE_USER.role;
+  const city = profile?.city || FAKE_USER.city;
+  const bio = profile?.bio || FAKE_USER.bio;
+  const website = profile?.website || FAKE_USER.website;
+  const cleanUsername = username.replace('@', '');
+  const instagramUrl = `https://www.instagram.com/${cleanUsername}`;
 
   const critiqueItems = RECENT_REVIEWS.slice(0, 3).map((request, index) => ({
     id: `critique-${index + 1}`,
@@ -44,9 +78,144 @@ export default function Profile() {
     caption: request.caption,
   }));
 
+  const loadProfile = async () => {
+    setIsLoadingProfile(true);
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        setProfile(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(
+          `
+          id,
+          display_name,
+          username,
+          instagram_handle,
+          role,
+          city,
+          bio,
+          website,
+          avatar_url
+        `
+        )
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setProfile(data as UserProfile | null);
+    } catch (error) {
+      console.error('Profile load error:', error);
+      setProfile(null);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    setAvatarMessage('');
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        throw new Error('You must be logged in to upload a profile picture.');
+      }
+
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please upload an image file.');
+      }
+
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const filePath = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile((current) =>
+        current
+          ? {
+            ...current,
+            avatar_url: publicUrl,
+          }
+          : {
+            id: user.id,
+            display_name: user.email || 'Creative Member',
+            username: null,
+            instagram_handle: null,
+            role: null,
+            city: null,
+            bio: null,
+            website: null,
+            avatar_url: publicUrl,
+          }
+      );
+
+      setAvatarMessage('Profile picture updated.');
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong uploading your profile picture.';
+
+      setAvatarMessage(message);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20">
-      {/* Profile Identity Card */}
       <section className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
         <div className="h-24 md:h-36 bg-gradient-to-br from-brand-accent/20 via-brand-gray to-brand-black relative">
           <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent" />
@@ -62,20 +231,40 @@ export default function Profile() {
 
         <div className="p-5 md:p-8 -mt-10 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-brand-black bg-brand-gray overflow-hidden flex-shrink-0">
+            <label className="relative w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-brand-black bg-brand-gray overflow-hidden flex-shrink-0 cursor-pointer group block">
               <img
-                src={FAKE_USER.avatarUrl}
-                alt={FAKE_USER.displayName}
+                src={avatarUrl}
+                alt={displayName}
                 className="w-full h-full object-cover"
                 draggable={false}
+                onError={(event) => {
+                  event.currentTarget.src = getFallbackAvatar(profile?.id);
+                }}
               />
-            </div>
+
+              <div className="absolute inset-0 bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                {isUploadingAvatar ? (
+                  <Loader2 size={20} className="animate-spin text-white" />
+                ) : (
+                  <Upload size={20} className="text-white" />
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+                disabled={isUploadingAvatar}
+              />
+            </label>
 
             <div className="flex-1 min-w-0 space-y-3 pt-2">
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <h1 className="text-2xl md:text-4xl font-black tracking-tighter uppercase">
-                    {FAKE_USER.displayName}
+                    {isLoadingProfile ? 'Loading...' : displayName}
                   </h1>
 
                   {FAKE_USER.isSupporter && (
@@ -93,13 +282,13 @@ export default function Profile() {
                     className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent hover:text-white transition-colors"
                   >
                     <Instagram size={13} />
-                    @{FAKE_USER.username}
+                    @{cleanUsername}
                     <ExternalLink size={11} />
                   </a>
 
-                  {FAKE_USER.website && (
+                  {website && (
                     <a
-                      href={FAKE_USER.website}
+                      href={website}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-brand-accent transition-colors"
@@ -113,18 +302,24 @@ export default function Profile() {
               </div>
 
               <p className="text-sm text-gray-400 font-medium leading-relaxed max-w-2xl">
-                {FAKE_USER.bio}
+                {bio}
               </p>
+
+              {avatarMessage && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                  {avatarMessage}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 mt-5">
             <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-brand-accent flex items-center gap-2">
-              <Briefcase size={13} /> {FAKE_USER.role}
+              <Briefcase size={13} /> {role}
             </span>
 
             <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-              <MapPin size={13} /> {FAKE_USER.city}
+              <MapPin size={13} /> {city}
             </span>
 
             <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2">
@@ -134,7 +329,6 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* Stats Carousel on Mobile / Row on Desktop */}
       <section className="flex gap-3 overflow-x-auto md:grid md:grid-cols-3 md:overflow-visible no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         <div className="min-w-[58%] md:min-w-0 bg-brand-gray border border-white/10 rounded-2xl p-5 text-center">
           <p className="text-3xl font-black text-brand-accent mb-1">82</p>
@@ -158,7 +352,6 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* Membership Status */}
       <section className="bg-brand-accent/10 border border-brand-accent/20 rounded-3xl p-5 md:p-6 space-y-4">
         <div className="flex items-center gap-3 text-brand-accent">
           <ShieldCheck size={22} />
@@ -169,20 +362,18 @@ export default function Profile() {
         </div>
 
         <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed tracking-wider">
-          Proud and productive member since March 2024. Never banned. Always
-          honest.
+          Proud and productive member. Never banned. Always honest.
         </p>
       </section>
 
-      {/* Work Tabs */}
       <section className="space-y-5">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => setActiveTab('frames')}
             className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'frames'
-              ? 'bg-brand-accent border-brand-accent text-brand-black'
-              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
               }`}
           >
             <Grid size={15} /> Frames
@@ -192,8 +383,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('critiques')}
             className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'critiques'
-              ? 'bg-brand-accent border-brand-accent text-brand-black'
-              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
               }`}
           >
             <History size={15} /> Critiques
@@ -204,7 +395,7 @@ export default function Profile() {
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4"
+            className="grid grid-cols-3 gap-1 md:gap-3"
           >
             {RECENT_REVIEWS.map((request) => {
               const isExplicit = request.contentRating === 'Explicit';
@@ -213,7 +404,7 @@ export default function Profile() {
                 <Link
                   key={request.id}
                   to={`/photo/${request.id}`}
-                  className="aspect-[3/4] rounded-2xl overflow-hidden relative group cursor-pointer border border-white/5 bg-brand-gray block"
+                  className="aspect-square overflow-hidden relative group cursor-pointer border border-white/5 bg-brand-gray block"
                 >
                   <img
                     src={request.imageUrl}
@@ -224,21 +415,15 @@ export default function Profile() {
                     onContextMenu={(event) => event.preventDefault()}
                   />
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                  <div className="absolute top-3 left-3">
-                    <span className="px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest bg-black/60 border border-white/10 text-white/70">
-                      {getRatingLabel(request.contentRating)}
-                    </span>
-                  </div>
-
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <p className="text-[9px] font-black text-brand-accent uppercase mb-1">
+                  <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[8px] font-black text-brand-accent uppercase">
                       {request.reviewCount} reviews
                     </p>
 
-                    <p className="text-xs font-bold uppercase line-clamp-2">
-                      {request.caption}
+                    <p className="text-[9px] font-bold uppercase line-clamp-1">
+                      {getRatingLabel(request.contentRating)}
                     </p>
                   </div>
                 </Link>
@@ -285,7 +470,6 @@ export default function Profile() {
         )}
       </section>
 
-      {/* Quick Actions */}
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Link
           to="/submit"

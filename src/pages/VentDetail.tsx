@@ -13,6 +13,7 @@ import {
     Reply,
     Loader2,
     AlertCircle,
+    Sparkles,
 } from 'lucide-react';
 import { FAKE_CREATORS, FAKE_VENTS } from '../data';
 import { supabase } from '../lib/supabase';
@@ -167,6 +168,29 @@ function mapSupabaseReplyToCommentReply(reply: SupabaseVentReplyRow): CommentRep
     };
 }
 
+function formatTimeAgo(dateString: string) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (Number.isNaN(seconds)) return 'Recently';
+    if (seconds < 60) return 'Just now';
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) return `${weeks}w ago`;
+
+    return date.toLocaleDateString();
+}
+
 function getMentionQuery(text: string) {
     const match = text.match(/@([a-zA-Z0-9_]*)$/);
     return match ? match[1].toLowerCase() : null;
@@ -186,6 +210,18 @@ function renderTextWithMentions(text: string) {
 
         return <span key={`${part}-${index}`}>{part}</span>;
     });
+}
+
+function IdentityAvatar({ isAnonymous }: { isAnonymous: boolean }) {
+    return (
+        <div className="w-full h-full flex items-center justify-center bg-brand-accent/10">
+            {isAnonymous ? (
+                <EyeOff size={15} className="text-brand-accent" />
+            ) : (
+                <User size={15} className="text-brand-accent" />
+            )}
+        </div>
+    );
 }
 
 export default function VentDetail() {
@@ -229,8 +265,11 @@ export default function VentDetail() {
     const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
     const [replyModes, setReplyModes] = useState<Record<string, VentPostMode>>({});
     const [replies, setReplies] = useState<CommentReply[]>(STARTER_REPLIES);
-    const [isPostingReply, setIsPostingReply] = useState<Record<string, boolean>>({});
+    const [isPostingReply, setIsPostingReply] = useState<Record<string, boolean>>(
+        {}
+    );
     const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
+
     const mentionQuery = getMentionQuery(commentText);
 
     const mentionSuggestions = useMemo(() => {
@@ -358,13 +397,13 @@ export default function VentDetail() {
                 .from('vent_replies')
                 .select(
                     `
-        id,
-        comment_id,
-        user_id,
-        content,
-        is_anonymous,
-        created_at
-        `
+          id,
+          comment_id,
+          user_id,
+          content,
+          is_anonymous,
+          created_at
+          `
                 )
                 .in('comment_id', commentIds)
                 .order('created_at', { ascending: true });
@@ -380,7 +419,6 @@ export default function VentDetail() {
             );
 
             setReplies(mappedReplies);
-
         } catch (error) {
             const message =
                 error instanceof Error
@@ -588,13 +626,13 @@ export default function VentDetail() {
                 })
                 .select(
                     `
-                id,
-                comment_id,
-                user_id,
-                content,
-                is_anonymous,
-                created_at
-                `
+          id,
+          comment_id,
+          user_id,
+          content,
+          is_anonymous,
+          created_at
+          `
                 )
                 .single();
 
@@ -661,7 +699,6 @@ export default function VentDetail() {
             const currentUpvotes = realVent?.upvotes ?? vent.upvotes ?? 0;
 
             if (hasUpvoted) {
-                // 1. Remove this user's upvote row
                 const { error: deleteError } = await supabase
                     .from('vent_upvotes')
                     .delete()
@@ -674,7 +711,6 @@ export default function VentDetail() {
 
                 const nextUpvoteCount = Math.max(0, currentUpvotes - 1);
 
-                // 2. Directly update the count on the vents table
                 const { data: updatedVent, error: updateError } = await supabase
                     .from('vents')
                     .update({
@@ -683,14 +719,14 @@ export default function VentDetail() {
                     .eq('id', vent.id)
                     .select(
                         `
-                    id,
-                    user_id,
-                    content,
-                    is_anonymous,
-                    upvotes,
-                    comment_count,
-                    created_at
-                    `
+            id,
+            user_id,
+            content,
+            is_anonymous,
+            upvotes,
+            comment_count,
+            created_at
+            `
                     )
                     .single();
 
@@ -704,7 +740,6 @@ export default function VentDetail() {
                     mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow)
                 );
             } else {
-                // 1. Add this user's upvote row
                 const { error: insertError } = await supabase
                     .from('vent_upvotes')
                     .insert({
@@ -718,7 +753,6 @@ export default function VentDetail() {
 
                 const nextUpvoteCount = currentUpvotes + 1;
 
-                // 2. Directly update the count on the vents table
                 const { data: updatedVent, error: updateError } = await supabase
                     .from('vents')
                     .update({
@@ -727,14 +761,14 @@ export default function VentDetail() {
                     .eq('id', vent.id)
                     .select(
                         `
-                    id,
-                    user_id,
-                    content,
-                    is_anonymous,
-                    upvotes,
-                    comment_count,
-                    created_at
-                    `
+            id,
+            user_id,
+            content,
+            is_anonymous,
+            upvotes,
+            comment_count,
+            created_at
+            `
                     )
                     .single();
 
@@ -746,7 +780,6 @@ export default function VentDetail() {
 
                 setRealVent(
                     mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow)
-
                 );
             }
         } catch (error) {
@@ -768,7 +801,7 @@ export default function VentDetail() {
                     <Loader2 size={20} className="animate-spin" />
 
                     <p className="text-[10px] font-black uppercase tracking-widest">
-                        Loading vent thread...
+                        Loading thread...
                     </p>
                 </div>
             </div>
@@ -776,437 +809,535 @@ export default function VentDetail() {
     }
 
     return (
-        <div className="space-y-6 pb-10">
-            <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
-            >
-                <ChevronLeft size={18} /> Back to vents
-            </button>
+        <div className="pb-10">
+            <div className="max-w-2xl mx-auto space-y-5">
+                <button
+                    type="button"
+                    onClick={() => navigate(-1)}
+                    className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
+                >
+                    <ChevronLeft size={18} /> Back to vents
+                </button>
 
-            {pageError && (
-                <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl flex items-start gap-3">
-                    <AlertCircle
-                        size={18}
-                        className="text-brand-critique flex-shrink-0 mt-0.5"
-                    />
+                {pageError && (
+                    <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl flex items-start gap-3">
+                        <AlertCircle
+                            size={18}
+                            className="text-brand-critique flex-shrink-0 mt-0.5"
+                        />
 
-                    <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                        Live thread error: {pageError}. Showing fallback prototype thread.
-                    </p>
-                </div>
-            )}
+                        <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                            Thread error: {pageError}. Showing fallback thread.
+                        </p>
+                    </div>
+                )}
 
-            {/* Main Vent */}
-            <section className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-8 space-y-5">
-                <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-11 h-11 rounded-2xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center flex-shrink-0">
-                            {vent.isAnonymous ? (
-                                <EyeOff size={18} className="text-brand-accent" />
-                            ) : (
-                                <User size={18} className="text-brand-accent" />
-                            )}
-                        </div>
+                {/* Main Thread */}
+                <section className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
+                    <div className="p-4 md:p-5">
+                        <div className="flex gap-3">
+                            <div className="flex flex-col items-center flex-shrink-0">
+                                <div className="w-11 h-11 rounded-full bg-brand-black border border-white/10 overflow-hidden">
+                                    <IdentityAvatar isAnonymous={vent.isAnonymous} />
+                                </div>
 
-                        <div className="min-w-0">
-                            <p className="text-xs font-black uppercase tracking-widest truncate">
-                                {vent.isAnonymous ? 'Anonymous Creative' : 'Creative Member'}
-                            </p>
+                                {comments.length > 0 && (
+                                    <div className="w-px flex-1 bg-white/10 mt-3" />
+                                )}
+                            </div>
 
-                            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
-                                {isRealSupabaseVent ? 'Live Supabase Thread' : 'Prototype Thread'}
-                            </p>
+                            <div className="flex-1 min-w-0 space-y-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-sm font-black uppercase tracking-tight truncate">
+                                                {vent.isAnonymous
+                                                    ? 'Anonymous Creative'
+                                                    : 'Creative Member'}
+                                            </p>
+
+                                            <span className="text-gray-700 text-xs">•</span>
+
+                                            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                                                {formatTimeAgo(vent.createdAt)}
+                                            </p>
+                                        </div>
+
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mt-1">
+                                            {vent.isAnonymous ? 'Identity hidden' : 'Posted openly'}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={isUpvoting}
+                                        onClick={handleToggleUpvote}
+                                        className={`min-h-[36px] px-3 rounded-full border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 ${hasUpvoted
+                                                ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
+                                                : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
+                                            }`}
+                                    >
+                                        {isUpvoting ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <ThumbsUp size={14} />
+                                        )}
+                                        {upvoteCount}
+                                    </button>
+                                </div>
+
+                                <p className="text-[17px] md:text-xl text-white font-semibold leading-relaxed whitespace-pre-wrap">
+                                    {vent.content}
+                                </p>
+
+                                {upvoteError && (
+                                    <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
+                                        <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                                            {upvoteError}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        type="button"
+                                        disabled={isUpvoting}
+                                        onClick={handleToggleUpvote}
+                                        className={`min-h-[36px] px-3 rounded-full border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 ${hasUpvoted
+                                                ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
+                                                : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
+                                            }`}
+                                    >
+                                        {isUpvoting ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <ThumbsUp size={14} />
+                                        )}
+                                        Upvote
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const textarea = document.getElementById('thread-comment-box');
+                                            textarea?.focus();
+                                        }}
+                                        className="min-h-[36px] px-3 rounded-full border border-white/10 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-brand-accent hover:border-brand-accent/30 transition-all"
+                                    >
+                                        <MessageSquare size={14} />
+                                        Comment
+                                    </button>
+                                </div>
+
+                                <div className="flex items-start gap-3 p-4 bg-brand-black/60 rounded-2xl border border-brand-critique/20">
+                                    <AlertTriangle
+                                        size={17}
+                                        className="text-brand-critique flex-shrink-0 mt-0.5"
+                                    />
+
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 leading-relaxed">
+                                        Keep it funny, useful, and clean. No names, no doxxing, no
+                                        screenshots, no personal attacks.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </section>
 
-                    <button
-                        type="button"
-                        disabled={isUpvoting}
-                        onClick={handleToggleUpvote}
-                        className={`min-h-[42px] px-4 rounded-full border flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 ${hasUpvoted
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/10 text-gray-500 hover:text-white'
-                            }`}
-                    >
-                        {isUpvoting ? (
-                            <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                            <ThumbsUp size={14} />
-                        )}
-                        {upvoteCount}
-                    </button>
+                {/* Comment Composer */}
+                <section className="bg-brand-gray border border-white/10 rounded-3xl p-4 md:p-5">
+                    <div className="flex gap-3">
+                        <div className="w-10 h-10 rounded-full border border-brand-accent/30 overflow-hidden flex-shrink-0">
+                            <IdentityAvatar isAnonymous={commentMode === 'anon'} />
+                        </div>
 
-                </div>
+                        <div className="flex-1 min-w-0 space-y-4">
+                            <div className="flex items-center gap-2 text-gray-600">
+                                <MessageSquare size={14} />
 
-                <p className="text-xl md:text-2xl text-white font-black uppercase tracking-tight leading-tight">
-                    {vent.content}
-                </p>
-
-                <div className="flex items-start gap-3 p-4 bg-brand-black/60 rounded-2xl border border-brand-critique/20">
-                    <AlertTriangle
-                        size={18}
-                        className="text-brand-critique flex-shrink-0 mt-0.5"
-                    />
-
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 leading-relaxed">
-                        Keep the thread funny, useful, and clean. No names, no doxxing, no
-                        screenshots, no personal attacks.
-                    </p>
-                </div>
-            </section>
-
-            {upvoteError && (
-                <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
-                    <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                        {upvoteError}
-                    </p>
-                </div>
-            )}
-
-            {/* Comment Form */}
-            <section className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                    <MessageSquare size={16} className="text-brand-accent" />
-
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        Add to the thread
-                    </p>
-                </div>
-
-                <div className="relative space-y-3">
-                    <textarea
-                        value={commentText}
-                        onChange={(event) => handleCommentChange(event.target.value)}
-                        rows={4}
-                        placeholder="Add a comment, joke, cosign, or useful perspective... type @ to tag a member"
-                        className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium focus:border-brand-accent outline-none resize-none transition-all"
-                    />
-
-                    {mentionSuggestions.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                                <AtSign size={14} className="text-brand-accent" />
-
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                    Tag a member
+                                <p className="text-[10px] font-black uppercase tracking-widest">
+                                    Add to the thread
                                 </p>
                             </div>
 
-                            <div className="p-2 space-y-1">
-                                {mentionSuggestions.map((creator) => (
-                                    <button
-                                        key={creator.id}
-                                        type="button"
-                                        onClick={() => insertMention(creator.username)}
-                                        className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
-                                    >
-                                        <img
-                                            src={creator.avatarUrl}
-                                            alt={creator.displayName}
-                                            className="w-9 h-9 rounded-full object-cover"
-                                            draggable={false}
-                                        />
+                            <div className="relative space-y-3">
+                                <textarea
+                                    id="thread-comment-box"
+                                    value={commentText}
+                                    onChange={(event) => handleCommentChange(event.target.value)}
+                                    rows={4}
+                                    placeholder="Add a comment, joke, cosign, or useful perspective..."
+                                    className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
+                                />
 
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-black uppercase tracking-widest truncate">
-                                                {creator.displayName}
-                                            </p>
+                                {mentionSuggestions.length > 0 && (
+                                    <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                                        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+                                            <AtSign size={14} className="text-brand-accent" />
 
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
-                                                @{creator.username}
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                                Tag a member
                                             </p>
                                         </div>
-                                    </button>
-                                ))}
+
+                                        <div className="p-2 space-y-1">
+                                            {mentionSuggestions.map((creator) => (
+                                                <button
+                                                    key={creator.id}
+                                                    type="button"
+                                                    onClick={() => insertMention(creator.username)}
+                                                    className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
+                                                >
+                                                    <img
+                                                        src={creator.avatarUrl}
+                                                        alt={creator.displayName}
+                                                        className="w-9 h-9 rounded-full object-cover"
+                                                        draggable={false}
+                                                    />
+
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-black uppercase tracking-widest truncate">
+                                                            {creator.displayName}
+                                                        </p>
+
+                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
+                                                            @{creator.username}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    )}
 
-                    <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">
-                        Tip: type @ to mention a member. Prototype mentions use fake members
-                        for now.
-                    </p>
-                </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-white/10">
+                                <div className="grid grid-cols-2 gap-2 sm:flex">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCommentMode('self')}
+                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'self'
+                                                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                : 'border-white/20 text-gray-500 hover:text-white'
+                                            }`}
+                                    >
+                                        <User size={14} />
+                                        As me
+                                    </button>
 
-                <div className="grid grid-cols-2 gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setCommentMode('self')}
-                        className={`min-h-[46px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'self'
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/20 text-gray-500 hover:text-white'
-                            }`}
-                    >
-                        <User size={14} />
-                        As me
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setCommentMode('anon')}
-                        className={`min-h-[46px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'anon'
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/20 text-gray-500 hover:text-white'
-                            }`}
-                    >
-                        <EyeOff size={14} />
-                        Anon
-                    </button>
-                </div>
-
-                {commentError && (
-                    <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
-                        <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                            {commentError}
-                        </p>
-                    </div>
-                )}
-
-                <button
-                    type="button"
-                    disabled={!canComment}
-                    onClick={handlePostComment}
-                    className="w-full min-h-[50px] bg-white text-brand-black rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-                >
-                    {isPostingComment ? (
-                        <>
-                            <Loader2 size={14} className="animate-spin" />
-                            Posting Comment
-                        </>
-                    ) : (
-                        <>
-                            Comment <Send size={14} />
-                        </>
-                    )}
-                </button>
-            </section>
-
-            {/* Comments */}
-            <section className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-                        {comments.length} comments
-                    </p>
-
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-                        Full thread
-                    </p>
-                </div>
-
-                {comments.length === 0 ? (
-                    <div className="bg-brand-gray border border-white/10 rounded-3xl p-6 text-center">
-                        <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">
-                            No comments yet. Start the chaos.
-                        </p>
-                    </div>
-                ) : (
-                    comments.map((comment) => {
-                        const commentReplies = replies.filter(
-                            (replyItem) => replyItem.commentId === comment.id
-                        );
-                        const isReplyOpen = activeReplyCommentId === comment.id;
-                        const replyText = replyDrafts[comment.id] || '';
-                        const replyMode = getReplyMode(comment.id);
-                        const isThisReplyPosting = Boolean(isPostingReply[comment.id]);
-                        const canReply = replyText.trim().length >= 2 && !isThisReplyPosting;
-
-                        return (
-                            <motion.article
-                                key={comment.id}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-brand-gray border border-white/10 rounded-3xl p-5 space-y-4"
-                            >
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-7 h-7 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
-                                            {comment.isAnonymous ? (
-                                                <EyeOff size={13} className="text-brand-accent" />
-                                            ) : (
-                                                <User size={13} className="text-brand-accent" />
-                                            )}
-                                        </div>
-
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            {comment.isAnonymous
-                                                ? 'Anonymous Creative'
-                                                : 'Creative Member'}
-                                        </p>
-                                    </div>
-
-                                    <p className="text-sm md:text-base text-gray-300 leading-relaxed">
-                                        {renderTextWithMentions(comment.content)}
-                                    </p>
-
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setActiveReplyCommentId((current) =>
-                                                    current === comment.id ? null : comment.id
-                                                )
-                                            }
-                                            className="min-h-[36px] px-3 rounded-full border border-white/10 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:border-brand-accent flex items-center gap-2 transition-all"
-                                        >
-                                            <Reply size={13} />
-                                            Reply
-                                        </button>
-
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-700">
-                                            {commentReplies.length} replies
-                                        </p>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCommentMode('anon')}
+                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'anon'
+                                                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                : 'border-white/20 text-gray-500 hover:text-white'
+                                            }`}
+                                    >
+                                        <EyeOff size={14} />
+                                        Anon
+                                    </button>
                                 </div>
 
-                                {commentReplies.length > 0 && (
-                                    <div className="ml-4 md:ml-6 pl-4 border-l border-white/10 space-y-3">
-                                        {commentReplies.map((replyItem) => (
-                                            <div
-                                                key={replyItem.id}
-                                                className="bg-brand-black/50 border border-white/5 rounded-2xl p-4 space-y-2"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-6 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
-                                                        {replyItem.isAnonymous ? (
-                                                            <EyeOff size={12} className="text-brand-accent" />
-                                                        ) : (
-                                                            <User size={12} className="text-brand-accent" />
-                                                        )}
-                                                    </div>
+                                <button
+                                    type="button"
+                                    disabled={!canComment}
+                                    onClick={handlePostComment}
+                                    className="min-h-[42px] px-5 bg-white text-brand-black rounded-full font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+                                >
+                                    {isPostingComment ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Posting
+                                        </>
+                                    ) : (
+                                        <>
+                                            Comment <Send size={14} />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
 
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                                        {replyItem.isAnonymous
+                            {commentError && (
+                                <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
+                                    <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                                        {commentError}
+                                    </p>
+                                </div>
+                            )}
+
+                            <p className="text-[9px] text-gray-700 font-black uppercase tracking-widest">
+                                Tip: type @ to mention a member. Prototype mentions use fake
+                                members for now.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Comments */}
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-2 text-gray-600">
+                            <Sparkles size={14} />
+
+                            <p className="text-[10px] font-black uppercase tracking-widest">
+                                {comments.length} comments
+                            </p>
+                        </div>
+
+                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                            Full thread
+                        </p>
+                    </div>
+
+                    {comments.length === 0 ? (
+                        <div className="bg-brand-gray border border-white/10 rounded-3xl p-6 text-center">
+                            <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">
+                                No comments yet. Start the chaos.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
+                            {comments.map((comment, index) => {
+                                const commentReplies = replies.filter(
+                                    (replyItem) => replyItem.commentId === comment.id
+                                );
+                                const isReplyOpen = activeReplyCommentId === comment.id;
+                                const replyText = replyDrafts[comment.id] || '';
+                                const replyMode = getReplyMode(comment.id);
+                                const isThisReplyPosting = Boolean(isPostingReply[comment.id]);
+                                const canReply =
+                                    replyText.trim().length >= 2 && !isThisReplyPosting;
+
+                                return (
+                                    <motion.article
+                                        key={comment.id}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className={`p-4 md:p-5 hover:bg-white/[0.025] transition-all ${index !== comments.length - 1
+                                                ? 'border-b border-white/10'
+                                                : ''
+                                            }`}
+                                    >
+                                        <div className="flex gap-3">
+                                            <div className="flex flex-col items-center flex-shrink-0">
+                                                <div className="w-9 h-9 rounded-full bg-brand-black border border-white/10 overflow-hidden">
+                                                    <IdentityAvatar isAnonymous={comment.isAnonymous} />
+                                                </div>
+
+                                                {(commentReplies.length > 0 || isReplyOpen) && (
+                                                    <div className="w-px flex-1 bg-white/10 mt-3" />
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0 space-y-3">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="text-xs font-black uppercase tracking-tight">
+                                                        {comment.isAnonymous
                                                             ? 'Anonymous Creative'
                                                             : 'Creative Member'}
                                                     </p>
+
+                                                    <span className="text-gray-700 text-xs">•</span>
+
+                                                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                                                        {formatTimeAgo(comment.createdAt)}
+                                                    </p>
                                                 </div>
 
-                                                <p className="text-xs md:text-sm text-gray-300 leading-relaxed">
-                                                    {renderTextWithMentions(replyItem.content)}
+                                                <p className="text-sm md:text-base text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                                    {renderTextWithMentions(comment.content)}
                                                 </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
 
-                                {isReplyOpen && (
-                                    <div className="ml-4 md:ml-6 pl-4 border-l border-brand-accent/30 space-y-3">
-                                        <div className="relative">
-                                            <textarea
-                                                value={replyText}
-                                                onChange={(event) =>
-                                                    handleReplyChange(comment.id, event.target.value)
-                                                }
-                                                rows={3}
-                                                placeholder="Reply to this comment... type @ to tag"
-                                                className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium focus:border-brand-accent outline-none resize-none transition-all"
-                                            />
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setActiveReplyCommentId((current) =>
+                                                                current === comment.id ? null : comment.id
+                                                            )
+                                                        }
+                                                        className={`min-h-[34px] px-3 rounded-full border text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${isReplyOpen
+                                                                ? 'bg-white/10 border-white/20 text-white'
+                                                                : 'border-white/10 text-gray-500 hover:text-brand-accent hover:border-brand-accent/30'
+                                                            }`}
+                                                    >
+                                                        <Reply size={13} />
+                                                        Reply
+                                                    </button>
 
-                                            {activeReplyCommentId === comment.id &&
-                                                replyMentionSuggestions.length > 0 && (
-                                                    <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                                                        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                                                            <AtSign size={14} className="text-brand-accent" />
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-700">
+                                                        {commentReplies.length} replies
+                                                    </p>
+                                                </div>
 
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                                                Tag a member
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="p-2 space-y-1">
-                                                            {replyMentionSuggestions.map((creator) => (
-                                                                <button
-                                                                    key={creator.id}
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        insertReplyMention(comment.id, creator.username)
-                                                                    }
-                                                                    className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
-                                                                >
-                                                                    <img
-                                                                        src={creator.avatarUrl}
-                                                                        alt={creator.displayName}
-                                                                        className="w-9 h-9 rounded-full object-cover"
-                                                                        draggable={false}
-                                                                    />
-
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-xs font-black uppercase tracking-widest truncate">
-                                                                            {creator.displayName}
-                                                                        </p>
-
-                                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
-                                                                            @{creator.username}
-                                                                        </p>
+                                                {commentReplies.length > 0 && (
+                                                    <div className="space-y-3">
+                                                        {commentReplies.map((replyItem) => (
+                                                            <div
+                                                                key={replyItem.id}
+                                                                className="bg-brand-black/50 border border-white/5 rounded-2xl p-3 space-y-2"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-6 h-6 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
+                                                                        {replyItem.isAnonymous ? (
+                                                                            <EyeOff
+                                                                                size={12}
+                                                                                className="text-brand-accent"
+                                                                            />
+                                                                        ) : (
+                                                                            <User
+                                                                                size={12}
+                                                                                className="text-brand-accent"
+                                                                            />
+                                                                        )}
                                                                     </div>
-                                                                </button>
-                                                            ))}
-                                                        </div>
+
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                                        {replyItem.isAnonymous
+                                                                            ? 'Anonymous Creative'
+                                                                            : 'Creative Member'}{' '}
+                                                                        • {formatTimeAgo(replyItem.createdAt)}
+                                                                    </p>
+                                                                </div>
+
+                                                                <p className="text-xs md:text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                                                    {renderTextWithMentions(replyItem.content)}
+                                                                </p>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 )}
-                                        </div>
 
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setReplyModeForComment(comment.id, 'self')}
-                                                className={`min-h-[42px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'self'
-                                                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                    : 'border-white/20 text-gray-500 hover:text-white'
-                                                    }`}
-                                            >
-                                                <User size={13} />
-                                                As me
-                                            </button>
+                                                {isReplyOpen && (
+                                                    <div className="bg-brand-black/50 border border-white/10 rounded-3xl p-4 space-y-3">
+                                                        <div className="relative">
+                                                            <textarea
+                                                                value={replyText}
+                                                                onChange={(event) =>
+                                                                    handleReplyChange(comment.id, event.target.value)
+                                                                }
+                                                                rows={3}
+                                                                placeholder="Reply to this comment..."
+                                                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
+                                                            />
 
-                                            <button
-                                                type="button"
-                                                onClick={() => setReplyModeForComment(comment.id, 'anon')}
-                                                className={`min-h-[42px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'anon'
-                                                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                    : 'border-white/20 text-gray-500 hover:text-white'
-                                                    }`}
-                                            >
-                                                <EyeOff size={13} />
-                                                Anon
-                                            </button>
-                                        </div>
+                                                            {activeReplyCommentId === comment.id &&
+                                                                replyMentionSuggestions.length > 0 && (
+                                                                    <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                                                                        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+                                                                            <AtSign
+                                                                                size={14}
+                                                                                className="text-brand-accent"
+                                                                            />
 
-                                        {replyErrors[comment.id] && (
-                                            <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
-                                                <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                                                    {replyErrors[comment.id]}
-                                                </p>
+                                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                                                                Tag a member
+                                                                            </p>
+                                                                        </div>
+
+                                                                        <div className="p-2 space-y-1">
+                                                                            {replyMentionSuggestions.map((creator) => (
+                                                                                <button
+                                                                                    key={creator.id}
+                                                                                    type="button"
+                                                                                    onClick={() =>
+                                                                                        insertReplyMention(
+                                                                                            comment.id,
+                                                                                            creator.username
+                                                                                        )
+                                                                                    }
+                                                                                    className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
+                                                                                >
+                                                                                    <img
+                                                                                        src={creator.avatarUrl}
+                                                                                        alt={creator.displayName}
+                                                                                        className="w-9 h-9 rounded-full object-cover"
+                                                                                        draggable={false}
+                                                                                    />
+
+                                                                                    <div className="min-w-0">
+                                                                                        <p className="text-xs font-black uppercase tracking-widest truncate">
+                                                                                            {creator.displayName}
+                                                                                        </p>
+
+                                                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
+                                                                                            @{creator.username}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setReplyModeForComment(comment.id, 'self')
+                                                                }
+                                                                className={`min-h-[40px] rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'self'
+                                                                        ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                                        : 'border-white/20 text-gray-500 hover:text-white'
+                                                                    }`}
+                                                            >
+                                                                <User size={13} />
+                                                                As me
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setReplyModeForComment(comment.id, 'anon')
+                                                                }
+                                                                className={`min-h-[40px] rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'anon'
+                                                                        ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                                        : 'border-white/20 text-gray-500 hover:text-white'
+                                                                    }`}
+                                                            >
+                                                                <EyeOff size={13} />
+                                                                Anon
+                                                            </button>
+                                                        </div>
+
+                                                        {replyErrors[comment.id] && (
+                                                            <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
+                                                                <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                                                                    {replyErrors[comment.id]}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        <button
+                                                            type="button"
+                                                            disabled={!canReply}
+                                                            onClick={() => handlePostReply(comment.id)}
+                                                            className="w-full min-h-[42px] bg-white text-brand-black rounded-full font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+                                                        >
+                                                            {isThisReplyPosting ? (
+                                                                <>
+                                                                    <Loader2 size={13} className="animate-spin" />
+                                                                    Posting
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    Reply <Send size={13} />
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-
-                                        <button
-                                            type="button"
-                                            disabled={!canReply}
-                                            onClick={() => handlePostReply(comment.id)}
-                                            className="w-full min-h-[44px] bg-white text-brand-black rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-                                        >
-                                            {isThisReplyPosting ? (
-                                                <>
-                                                    <Loader2 size={13} className="animate-spin" />
-                                                    Posting Reply
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Post Reply <Send size={13} />
-                                                </>
-                                            )}
-                                        </button>
-
-                                    </div>
-                                )}
-                            </motion.article>
-                        );
-                    })
-                )}
-            </section>
+                                        </div>
+                                    </motion.article>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+            </div>
         </div>
     );
 }

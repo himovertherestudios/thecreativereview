@@ -1,10 +1,29 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Flame, ArrowRight, ShieldCheck, LogIn, Mail } from 'lucide-react';
+import { Flame, ArrowRight, ShieldCheck, LogIn, Mail, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const [checkingSession, setCheckingSession] = React.useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+
+      setCheckingSession(false);
+    };
+
+    checkSession();
+  }, [navigate]);
 
   const handleRequestInvite = () => {
     const subject = encodeURIComponent('Creative Review Beta Code Request');
@@ -15,9 +34,21 @@ export default function Landing() {
     window.location.href = `mailto:himovertherebooking@gmail.com?subject=${subject}&body=${body}`;
   };
 
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-brand-black flex items-center justify-center">
+        <div className="flex items-center gap-3 text-gray-500">
+          <Loader2 size={20} className="animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-widest">
+            Checking session...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center bg-brand-black p-6">
-      {/* Background Decorative Element */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-accent/5 rounded-full blur-[120px] pointer-events-none" />
 
       <motion.div
@@ -51,6 +82,7 @@ export default function Landing() {
 
         <div className="flex flex-col md:flex-row gap-4 justify-center">
           <button
+            type="button"
             onClick={() => navigate('/login')}
             className="px-10 py-5 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-white transition-all flex items-center justify-center gap-2"
           >
@@ -58,6 +90,7 @@ export default function Landing() {
           </button>
 
           <button
+            type="button"
             onClick={() => navigate('/invite')}
             className="px-10 py-5 bg-white text-brand-black rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-brand-accent transition-all flex items-center justify-center gap-2"
           >
@@ -65,6 +98,7 @@ export default function Landing() {
           </button>
 
           <button
+            type="button"
             onClick={handleRequestInvite}
             className="px-10 py-5 bg-transparent border-2 border-white/20 text-white rounded-2xl font-black uppercase text-sm tracking-widest hover:border-brand-accent hover:text-brand-accent transition-all flex items-center justify-center gap-2"
           >
@@ -77,7 +111,6 @@ export default function Landing() {
         </div>
       </motion.div>
 
-      {/* Floating labels */}
       <div className="absolute bottom-10 left-10 md:block hidden animate-pulse">
         <span className="text-[10px] uppercase font-bold tracking-[0.5em] text-white/20 vertical-rl transform rotate-180">
           RAW FEEDBACK ONLY

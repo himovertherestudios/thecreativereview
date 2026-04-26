@@ -61,6 +61,36 @@ type SupabaseCritiqueRow = {
   created_at: string;
 };
 
+function isFullUrl(value: string | null | undefined) {
+  if (!value) return false;
+
+  return (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('blob:') ||
+    value.startsWith('data:')
+  );
+}
+
+function getPublicPhotoUrl(value: string | null | undefined) {
+  if (!value) return '';
+
+  if (isFullUrl(value)) return value;
+
+  const cleanPath = value
+    .replace(/^\/+/, '')
+    .replace(/^photos\//, '')
+    .replace(/^public\//, '');
+
+  const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
+
+  return data.publicUrl || '';
+}
+
+function getFallbackImage(seed: string | undefined) {
+  return `https://picsum.photos/seed/${seed || 'creative-review'}/900/1200`;
+}
+
 function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest {
   return {
     id: photo.id,
@@ -69,7 +99,7 @@ function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest
     creatorUsername:
       photo.profiles?.instagram_handle || photo.profiles?.username || 'creative',
     creatorRole: photo.profiles?.role || 'Creative',
-    imageUrl: photo.watermarked_url || photo.image_url,
+    imageUrl: getPublicPhotoUrl(photo.watermarked_url || photo.image_url),
     caption: photo.caption || 'Untitled review request',
     contentRating: photo.content_rating,
     feedbackCategories: photo.feedback_categories || [],
@@ -144,7 +174,7 @@ export default function PhotoDetail() {
   const [submitError, setSubmitError] = useState('');
   const [isReporting, setIsReporting] = useState<Record<string, boolean>>({});
   const [reportMessages, setReportMessages] = useState<Record<string, string>>({});
-
+  const [displayImageUrl, setDisplayImageUrl] = useState('');
 
   const fallbackPhoto = useMemo(() => {
     const exactMatch = RECENT_REVIEWS.find((review) => review.id === id);
@@ -180,29 +210,36 @@ export default function PhotoDetail() {
     Boolean(portfolioReady) &&
     !isSubmitting;
 
+  useEffect(() => {
+    const nextImageUrl = getPublicPhotoUrl(photo.imageUrl);
+
+    setDisplayImageUrl(nextImageUrl || getFallbackImage(photo.id));
+  }, [photo.id, photo.imageUrl]);
+
   const loadPhotoDetail = async () => {
     if (!id) return;
 
     setIsLoadingPhoto(true);
     setPageError('');
+    setRevealed(false);
 
     try {
       const { data: photoData, error: photoError } = await supabase
         .from('photos')
         .select(
           `
-        id,
-        user_id,
-        image_url,
-        watermarked_url,
-        caption,
-        content_rating,
-        honesty_level,
-        feedback_categories,
-        allow_anonymous,
-        review_count,
-        created_at
-      `
+          id,
+          user_id,
+          image_url,
+          watermarked_url,
+          caption,
+          content_rating,
+          honesty_level,
+          feedback_categories,
+          allow_anonymous,
+          review_count,
+          created_at
+        `
         )
         .eq('id', id)
         .maybeSingle();
@@ -216,17 +253,24 @@ export default function PhotoDetail() {
         return;
       }
 
-      let profileData = null;
+      let profileData: {
+        display_name: string | null;
+        username: string | null;
+        instagram_handle: string | null;
+        role: string | null;
+        avatar_url: string | null;
+      } | null = null;
 
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .select(
           `
-        display_name,
-        username,
-        instagram_handle,
-        role
-      `
+          display_name,
+          username,
+          instagram_handle,
+          role,
+          avatar_url
+        `
         )
         .eq('id', photoData.user_id)
         .maybeSingle();
@@ -242,7 +286,7 @@ export default function PhotoDetail() {
           username: profileData?.username || null,
           instagram_handle: profileData?.instagram_handle || null,
           role: profileData?.role || null,
-          avatar_url: null,
+          avatar_url: profileData?.avatar_url || null,
         },
       } as SupabasePhotoRow);
 
@@ -252,17 +296,17 @@ export default function PhotoDetail() {
         .from('critiques')
         .select(
           `
-        id,
-        photo_id,
-        reviewer_id,
-        is_anonymous,
-        what_works,
-        what_needs_work,
-        quick_fix,
-        portfolio_ready,
-        rating,
-        created_at
-      `
+          id,
+          photo_id,
+          reviewer_id,
+          is_anonymous,
+          what_works,
+          what_needs_work,
+          quick_fix,
+          portfolio_ready,
+          rating,
+          created_at
+        `
         )
         .eq('photo_id', id)
         .order('created_at', { ascending: false });
@@ -293,6 +337,10 @@ export default function PhotoDetail() {
   useEffect(() => {
     loadPhotoDetail();
   }, [id]);
+
+  const handleImageError = () => {
+    setDisplayImageUrl(getFallbackImage(photo.id));
+  };
 
   const handleReportContent = async (
     contentType: 'photo' | 'critique',
@@ -433,7 +481,25 @@ export default function PhotoDetail() {
         data as unknown as SupabaseCritiqueRow
       );
 
+      const nextReviewCount = visibleReviewCount + 1;
+
       setLocalCritiques((current) => [newCritique, ...current]);
+      setRealPhoto((current) =>
+        current
+          ? {
+            ...current,
+            reviewCount: nextReviewCount,
+          }
+          : current
+      );
+
+      await supabase
+        .from('photos')
+        .update({
+          review_count: nextReviewCount,
+        })
+        .eq('id', photo.id);
+
       resetCritiqueForm();
     } catch (error) {
       const message =
@@ -487,7 +553,7 @@ export default function PhotoDetail() {
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
         {/* Main Image Area */}
         <div className="flex-1 space-y-5">
-          <div className="relative rounded-3xl overflow-hidden bg-brand-gray/50 border border-white/5">
+          <div className="relative rounded-3xl overflow-hidden bg-brand-gray/50 border border-white/5 aspect-[4/5] max-h-[820px]">
             {shouldBlur && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[36px] bg-black/60">
                 <ShieldOff size={48} className="text-brand-critique mb-6" />
@@ -513,11 +579,12 @@ export default function PhotoDetail() {
             )}
 
             <img
-              src={photo.imageUrl}
+              src={displayImageUrl}
               alt={photo.caption}
-              className={`w-full h-auto object-contain max-h-[800px] ${shouldBlur ? 'blur-3xl grayscale scale-105' : ''
+              className={`w-full h-full object-contain bg-black ${shouldBlur ? 'blur-3xl grayscale scale-105' : ''
                 }`}
               draggable={false}
+              onError={handleImageError}
               onContextMenu={(event) => event.preventDefault()}
             />
 
@@ -536,13 +603,15 @@ export default function PhotoDetail() {
             <div className="absolute top-4 left-4 z-20">
               <span
                 className={`px-3 py-2 rounded-full text-[8px] font-black uppercase tracking-widest border ${photo.contentRating === 'Safe'
-                  ? 'bg-green-500/20 text-green-300 border-green-500/40'
-                  : photo.contentRating === 'Suggestive'
-                    ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-                    : 'bg-red-500/20 text-red-300 border-red-500/40'
+                    ? 'bg-green-500/20 text-green-300 border-green-500/40'
+                    : photo.contentRating === 'Suggestive'
+                      ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                      : 'bg-red-500/20 text-red-300 border-red-500/40'
                   }`}
               >
-                {photo.contentRating === 'Explicit' ? 'NSFW' : photo.contentRating}
+                {photo.contentRating === 'Explicit'
+                  ? 'NSFW'
+                  : photo.contentRating}
               </span>
             </div>
           </div>
@@ -726,8 +795,8 @@ export default function PhotoDetail() {
                         type="button"
                         onClick={() => setPortfolioReady(value)}
                         className={`min-h-[48px] py-3 text-[10px] font-black tracking-widest border rounded-2xl transition-all uppercase flex items-center justify-center gap-2 ${isSelected
-                          ? 'bg-brand-accent border-brand-accent text-brand-black'
-                          : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
+                            ? 'bg-brand-accent border-brand-accent text-brand-black'
+                            : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
                           }`}
                       >
                         {value}
@@ -753,8 +822,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('self')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'self'
-                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                    : 'border-white/20 text-gray-500 hover:text-white'
+                      ? 'bg-brand-accent border-brand-accent text-brand-black'
+                      : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <User size={16} />
@@ -765,8 +834,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('anon')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'anon'
-                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                    : 'border-white/20 text-gray-500 hover:text-white'
+                      ? 'bg-brand-accent border-brand-accent text-brand-black'
+                      : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <EyeOff size={16} />
@@ -831,7 +900,9 @@ export default function PhotoDetail() {
                     <button
                       type="button"
                       disabled={Boolean(isReporting[`critique-${critique.id}`])}
-                      onClick={() => handleReportContent('critique', critique.id)}
+                      onClick={() =>
+                        handleReportContent('critique', critique.id)
+                      }
                       className="min-h-[30px] px-3 rounded-full border border-white/10 text-gray-500 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                     >
                       {isReporting[`critique-${critique.id}`] ? (
@@ -881,7 +952,9 @@ export default function PhotoDetail() {
 
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                     Portfolio ready:{' '}
-                    <span className="text-white">{critique.portfolioReady}</span>
+                    <span className="text-white">
+                      {critique.portfolioReady}
+                    </span>
                   </p>
                 </div>
               </motion.div>
