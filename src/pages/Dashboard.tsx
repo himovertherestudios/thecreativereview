@@ -26,11 +26,21 @@ type PhotoBackground = {
   watermarked_url: string | null;
 };
 
+type DailyTip = {
+  id: string;
+  content: string;
+  is_anonymous: boolean;
+  created_at: string;
+};
+
 const FALLBACK_TIP_BG =
   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
 
 const FALLBACK_VENT_BG =
   'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=80';
+
+const FALLBACK_TIP =
+  "Before you ask for critique, ask yourself what you actually want feedback on — lighting, posing, editing, styling, or emotion.";
 
 function isFullUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -175,6 +185,18 @@ function pickDailyPhoto(photos: PhotoBackground[]) {
   return photos[seed % photos.length];
 }
 
+function pickDailyTip(tips: DailyTip[]) {
+  if (tips.length === 0) return null;
+
+  const today = new Date();
+  const seed =
+    today.getFullYear() * 10000 +
+    (today.getMonth() + 1) * 100 +
+    today.getDate();
+
+  return tips[seed % tips.length];
+}
+
 function pickRandomPhoto(photos: PhotoBackground[]) {
   if (photos.length === 0) return null;
   return photos[Math.floor(Math.random() * photos.length)];
@@ -186,6 +208,7 @@ export default function Dashboard() {
 
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
+  const [dailyTip, setDailyTip] = useState(FALLBACK_TIP);
 
   useEffect(() => {
     const loadRandomBackgrounds = async () => {
@@ -201,6 +224,28 @@ export default function Dashboard() {
         setVentBg(FALLBACK_VENT_BG);
         return;
       }
+
+      useEffect(() => {
+        const loadDailyTip = async () => {
+          const { data, error } = await supabase
+            .from('tips')
+            .select('id, content, is_anonymous, created_at')
+            .eq('is_approved', true)
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+          if (error || !data || data.length === 0) {
+            setDailyTip(FALLBACK_TIP);
+            return;
+          }
+
+          const selectedTip = pickDailyTip(data as DailyTip[]);
+
+          setDailyTip(selectedTip?.content || FALLBACK_TIP);
+        };
+
+        loadDailyTip();
+      }, []);
 
       const photos = data as PhotoBackground[];
       const validPhotos = photos.filter(
@@ -228,8 +273,8 @@ export default function Dashboard() {
   const tipCard = (
     <BackgroundFeatureCard
       eyebrow="Tip of the Day"
-      title="Don't fix the color if the composition is dead."
-      body="Too many creatives spend hours polishing a frame that should have been cut. Kill your darlings early."
+      title={dailyTip}
+      body="A daily creative note pulled from approved community submissions."
       backgroundUrl={tipBg}
       fallbackUrl={FALLBACK_TIP_BG}
     />

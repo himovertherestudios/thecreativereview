@@ -12,26 +12,26 @@ import { RECENT_REVIEWS } from '../data';
 import { ContentRating, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
 
+type SupabaseProfile = {
+  display_name: string | null;
+  username: string | null;
+  role: string | null;
+  avatar_url: string | null;
+};
+
 type SupabasePhotoRow = {
   id: string;
   user_id: string;
-  image_url: string;
+  image_url: string | null;
   watermarked_url: string | null;
   caption: string | null;
-  content_rating: ContentRating;
-  honesty_level: HonestyLevel;
+  content_rating: ContentRating | null;
+  honesty_level: HonestyLevel | null;
   feedback_categories: string[] | null;
-  allow_anonymous: boolean;
-  review_count: number;
+  allow_anonymous: boolean | null;
+  review_count: number | null;
   created_at: string;
-  profiles:
-  | {
-    display_name: string | null;
-    username: string | null;
-    role: string | null;
-    avatar_url: string | null;
-  }
-  | null;
+  profiles: SupabaseProfile | SupabaseProfile[] | null;
 };
 
 function isFullUrl(value: string | null | undefined) {
@@ -51,9 +51,12 @@ function getPublicPhotoUrl(value: string | null | undefined) {
   if (isFullUrl(value)) return value;
 
   const cleanPath = value
+    .trim()
     .replace(/^\/+/, '')
     .replace(/^photos\//, '')
     .replace(/^public\//, '');
+
+  if (!cleanPath) return '';
 
   const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
 
@@ -62,6 +65,23 @@ function getPublicPhotoUrl(value: string | null | undefined) {
 
 function getFallbackImage(seed: string | undefined) {
   return `https://picsum.photos/seed/${seed || 'creative-review-feed'}/900/1200`;
+}
+
+function getProfile(profileData: SupabasePhotoRow['profiles']) {
+  if (!profileData) return null;
+
+  if (Array.isArray(profileData)) {
+    return profileData[0] || null;
+  }
+
+  return profileData;
+}
+
+function getBestPhotoImageUrl(photo: SupabasePhotoRow) {
+  const watermarkedImageUrl = getPublicPhotoUrl(photo.watermarked_url);
+  const originalImageUrl = getPublicPhotoUrl(photo.image_url);
+
+  return watermarkedImageUrl || originalImageUrl || getFallbackImage(photo.id);
 }
 
 function getRatingBadgeStyles(rating: ContentRating) {
@@ -89,19 +109,24 @@ function buildFeedPage(pageNumber: number): ReviewRequest[] {
 }
 
 function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest {
+  const profile = getProfile(photo.profiles);
+
   return {
     id: photo.id,
     creatorId: photo.user_id,
-    imageUrl: getPublicPhotoUrl(photo.watermarked_url || photo.image_url),
+    imageUrl: getBestPhotoImageUrl(photo),
     caption: photo.caption || 'Untitled critique post',
-    contentRating: photo.content_rating,
+    contentRating: photo.content_rating || 'Safe',
     feedbackCategories: photo.feedback_categories || [],
-    honestyLevel: photo.honesty_level,
-    allowAnonymous: photo.allow_anonymous,
+    honestyLevel: photo.honesty_level || 'Cook Me Respectfully',
+    allowAnonymous: Boolean(photo.allow_anonymous),
     createdAt: photo.created_at,
     reviewCount: photo.review_count || 0,
-    creatorName: photo.profiles?.display_name || 'Creative Member',
-    creatorRole: photo.profiles?.role || 'Creative',
+    creatorName:
+      profile?.display_name ||
+      profile?.username ||
+      'Creative Member',
+    creatorRole: profile?.role || 'Creative',
   };
 }
 
@@ -144,7 +169,7 @@ export default function ReviewFeed() {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const fakeFeedItems = useMemo(() => {
-    const pages = [];
+    const pages: ReviewRequest[] = [];
 
     for (let currentPage = 1; currentPage <= page; currentPage += 1) {
       pages.push(...buildFeedPage(currentPage));
@@ -184,7 +209,7 @@ export default function ReviewFeed() {
           )
         `
         )
-        .eq('is_hidden', false)
+        .or('is_hidden.is.null,is_hidden.eq.false')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -210,7 +235,7 @@ export default function ReviewFeed() {
     }
   };
 
-  const toggleReveal = (id: string, event: React.MouseEvent) => {
+  const toggleReveal = (id: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -261,7 +286,7 @@ export default function ReviewFeed() {
   return (
     <div className="space-y-5 pb-6">
       {isLoadingRealFeed && (
-        <div className="min-h-[160px] bg-brand-gray border border-white/10 rounded-3xl flex items-center justify-center">
+        <div className="crtr-card min-h-[160px] flex items-center justify-center">
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
 
@@ -273,7 +298,7 @@ export default function ReviewFeed() {
       )}
 
       {feedError && (
-        <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl flex items-start gap-3">
+        <div className="rounded-2xl border border-brand-critique/30 bg-brand-critique/10 p-4 flex items-start gap-3">
           <AlertCircle
             size={18}
             className="text-brand-critique flex-shrink-0 mt-0.5"
@@ -310,7 +335,7 @@ export default function ReviewFeed() {
                 layout
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-300 flex flex-col shadow-black/20"
+                className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-300 flex flex-col shadow-xl shadow-black/20"
               >
                 <div className="relative aspect-[4/5] bg-brand-black overflow-hidden">
                   {shouldBlur && (
@@ -435,6 +460,7 @@ export default function ReviewFeed() {
         ) : isLoadingMore ? (
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
+
             <span className="text-[10px] font-black uppercase tracking-widest">
               Loading more posts...
             </span>
