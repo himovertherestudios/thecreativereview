@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   MessageSquare,
@@ -6,9 +6,10 @@ import {
   Eye,
   Loader2,
   AlertCircle,
+  Camera,
+  ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { RECENT_REVIEWS } from '../data';
 import { ContentRating, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -96,19 +97,9 @@ function getRatingBadgeStyles(rating: ContentRating) {
   return 'bg-red-500/20 text-red-300 border border-red-500/40';
 }
 
-function buildFeedPage(pageNumber: number): ReviewRequest[] {
-  return RECENT_REVIEWS.map((request, index) => ({
-    ...request,
-    id: `${request.id}-page-${pageNumber}-${index}`,
-    caption:
-      pageNumber === 1
-        ? request.caption
-        : `${request.caption} — Round ${pageNumber}`,
-    reviewCount: request.reviewCount + pageNumber,
-  }));
-}
-
-function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest {
+function mapSupabasePhotoToReviewRequest(
+  photo: SupabasePhotoRow
+): ReviewRequest {
   const profile = getProfile(photo.profiles);
 
   return {
@@ -123,9 +114,7 @@ function mapSupabasePhotoToReviewRequest(photo: SupabasePhotoRow): ReviewRequest
     createdAt: photo.created_at,
     reviewCount: photo.review_count || 0,
     creatorName:
-      profile?.display_name ||
-      profile?.username ||
-      'Creative Member',
+      profile?.display_name || profile?.username || 'Creative Member',
     creatorRole: profile?.role || 'Creative',
   };
 }
@@ -142,7 +131,9 @@ function FeedImage({
   );
 
   useEffect(() => {
-    setImageUrl(getPublicPhotoUrl(request.imageUrl) || getFallbackImage(request.id));
+    setImageUrl(
+      getPublicPhotoUrl(request.imageUrl) || getFallbackImage(request.id)
+    );
   }, [request.id, request.imageUrl]);
 
   return (
@@ -158,31 +149,53 @@ function FeedImage({
   );
 }
 
+function BetaEmptyState({
+  icon: Icon,
+  eyebrow = 'Beta Empty State',
+  title,
+  body,
+  action,
+}: {
+  icon: React.ElementType;
+  eyebrow?: string;
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="min-h-[420px] rounded-3xl border border-white/10 bg-white/[0.03] p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+      <div className="absolute -top-20 -right-20 w-44 h-44 rounded-full bg-brand-accent/10 blur-3xl" />
+      <div className="absolute -bottom-20 -left-20 w-44 h-44 rounded-full bg-brand-critique/10 blur-3xl" />
+
+      <div className="relative z-10 w-14 h-14 rounded-2xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-5">
+        <Icon size={26} className="text-brand-accent" />
+      </div>
+
+      <p className="relative z-10 text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-3">
+        {eyebrow}
+      </p>
+
+      <h2 className="relative z-10 text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-4 max-w-lg">
+        {title}
+      </h2>
+
+      <p className="relative z-10 text-sm text-gray-400 leading-relaxed max-w-md">
+        {body}
+      </p>
+
+      {action && <div className="relative z-10 mt-6">{action}</div>}
+    </div>
+  );
+}
+
 export default function ReviewFeed() {
-  const [page, setPage] = useState(1);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [realFeedItems, setRealFeedItems] = useState<ReviewRequest[]>([]);
-  const [isLoadingRealFeed, setIsLoadingRealFeed] = useState(true);
+  const [feedItems, setFeedItems] = useState<ReviewRequest[]>([]);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   const [feedError, setFeedError] = useState('');
 
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
-  const fakeFeedItems = useMemo(() => {
-    const pages: ReviewRequest[] = [];
-
-    for (let currentPage = 1; currentPage <= page; currentPage += 1) {
-      pages.push(...buildFeedPage(currentPage));
-    }
-
-    return pages;
-  }, [page]);
-
-  const feedItems = realFeedItems.length > 0 ? realFeedItems : fakeFeedItems;
-  const isUsingFallbackFeed = realFeedItems.length === 0 && !isLoadingRealFeed;
-
   const loadRealFeed = async () => {
-    setIsLoadingRealFeed(true);
+    setIsLoadingFeed(true);
     setFeedError('');
 
     try {
@@ -221,7 +234,7 @@ export default function ReviewFeed() {
         mapSupabasePhotoToReviewRequest(photo as unknown as SupabasePhotoRow)
       );
 
-      setRealFeedItems(mappedFeed);
+      setFeedItems(mappedFeed);
     } catch (error) {
       const message =
         error instanceof Error
@@ -229,13 +242,16 @@ export default function ReviewFeed() {
           : 'Something went wrong loading the feed.';
 
       setFeedError(message);
-      setRealFeedItems([]);
+      setFeedItems([]);
     } finally {
-      setIsLoadingRealFeed(false);
+      setIsLoadingFeed(false);
     }
   };
 
-  const toggleReveal = (id: string, event: React.MouseEvent<HTMLButtonElement>) => {
+  const toggleReveal = (
+    id: string,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -249,228 +265,197 @@ export default function ReviewFeed() {
     loadRealFeed();
   }, []);
 
-  useEffect(() => {
-    if (realFeedItems.length > 0) return;
-
-    const target = loadMoreRef.current;
-
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const firstEntry = entries[0];
-
-        if (firstEntry.isIntersecting && !isLoadingMore) {
-          setIsLoadingMore(true);
-
-          window.setTimeout(() => {
-            setPage((currentPage) => currentPage + 1);
-            setIsLoadingMore(false);
-          }, 700);
-        }
-      },
-      {
-        root: null,
-        rootMargin: '500px',
-        threshold: 0,
-      }
-    );
-
-    observer.observe(target);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [isLoadingMore, realFeedItems.length]);
-
   return (
     <div className="space-y-5 pb-6">
-      {isLoadingRealFeed && (
-        <div className="crtr-card min-h-[160px] flex items-center justify-center">
+      {isLoadingFeed && (
+        <div className="crtr-card min-h-[220px] flex items-center justify-center">
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
 
             <span className="text-[10px] font-black uppercase tracking-widest">
-              Loading feed...
+              Loading review feed...
             </span>
           </div>
         </div>
       )}
 
-      {feedError && (
-        <div className="rounded-2xl border border-brand-critique/30 bg-brand-critique/10 p-4 flex items-start gap-3">
-          <AlertCircle
-            size={18}
-            className="text-brand-critique flex-shrink-0 mt-0.5"
-          />
-
-          <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-            Feed error: {feedError}. Showing fallback posts.
-          </p>
-        </div>
-      )}
-
-      {isUsingFallbackFeed && !feedError && (
-        <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-          <p className="text-[10px] uppercase font-black tracking-widest text-gray-600 leading-relaxed">
-            No uploads found yet. Showing sample posts until the first beta
-            uploads come in.
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
-        {feedItems.map((request) => {
-          const isExplicit = request.contentRating === 'Explicit';
-          const isRevealed = Boolean(revealed[request.id]);
-          const shouldBlur = isExplicit && !isRevealed;
-
-          return (
-            <Link
-              key={request.id}
-              to={`/photo/${request.id}`}
-              className="group block"
+      {!isLoadingFeed && feedError && (
+        <BetaEmptyState
+          icon={AlertCircle}
+          eyebrow="Feed Error"
+          title="The Feed Did Not Load"
+          body={`Something blocked the live feed from loading: ${feedError}`}
+          action={
+            <button
+              type="button"
+              onClick={loadRealFeed}
+              className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
             >
-              <motion.article
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-300 flex flex-col shadow-xl shadow-black/20"
-              >
-                <div className="relative aspect-[4/5] bg-brand-black overflow-hidden">
-                  {shouldBlur && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[24px] bg-black/50">
-                      <ShieldOff
-                        size={36}
-                        className="text-brand-critique mb-4"
-                      />
+              Try again <ArrowRight size={14} />
+            </button>
+          }
+        />
+      )}
 
-                      <p className="text-xs font-black uppercase tracking-[0.2em] mb-2 text-white">
-                        NSFW Content Hidden
-                      </p>
-
-                      <p className="text-[11px] text-gray-400 max-w-xs mb-4 leading-relaxed">
-                        This post is marked explicit. Reveal the preview or open
-                        the post to review it.
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={(event) => toggleReveal(request.id, event)}
-                        className="min-h-[42px] px-5 py-2 bg-white/10 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-2"
-                      >
-                        <Eye size={14} />
-                        Reveal Preview
-                      </button>
-                    </div>
-                  )}
-
-                  <FeedImage request={request} shouldBlur={shouldBlur} />
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent opacity-80 pointer-events-none" />
-
-                  <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
-                    <span
-                      className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getRatingBadgeStyles(
-                        request.contentRating
-                      )}`}
-                    >
-                      {request.contentRating === 'Explicit'
-                        ? 'NSFW'
-                        : request.contentRating}
-                    </span>
-
-                    {request.contentRating === 'Suggestive' && (
-                      <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-200 border border-orange-500/30">
-                        Labeled Only
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="absolute bottom-4 left-4 z-20">
-                    <span className="px-2 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
-                      Protected Preview
-                    </span>
-                  </div>
-
-                  <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
-                    <MessageSquare size={13} />
-
-                    <span className="text-[10px] font-black">
-                      {request.reviewCount}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-5 flex flex-col gap-4">
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-black uppercase tracking-tight line-clamp-2 mb-2">
-                      {request.caption}
-                    </h4>
-
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
-                      By{' '}
-                      <span className="text-white">
-                        {request.creatorName || 'Creative Member'}
-                      </span>{' '}
-                      • {request.creatorRole || 'Creative'}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
-                    {request.feedbackCategories.slice(0, 3).map((category) => (
-                      <span
-                        key={category}
-                        className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400"
-                      >
-                        {category}
-                      </span>
-                    ))}
-
-                    {request.feedbackCategories.length > 3 && (
-                      <span className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400">
-                        +{request.feedbackCategories.length - 3}
-                      </span>
-                    )}
-
-                    <span
-                      className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${request.honestyLevel === 'Cook Me Respectfully'
-                          ? 'bg-brand-critique/10 text-brand-critique'
-                          : 'bg-brand-accent/10 text-brand-accent'
-                        }`}
-                    >
-                      {request.honestyLevel}
-                    </span>
-                  </div>
-                </div>
-              </motion.article>
+      {!isLoadingFeed && !feedError && feedItems.length === 0 && (
+        <BetaEmptyState
+          icon={Camera}
+          title="No Review Requests Yet"
+          body="This is where beta members will post photos for honest critique. Be the first to upload a shot and start the creative feedback loop."
+          action={
+            <Link
+              to="/submit"
+              className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+            >
+              Submit a review request <ArrowRight size={14} />
             </Link>
-          );
-        })}
-      </div>
+          }
+        />
+      )}
 
-      <div
-        ref={loadMoreRef}
-        className="min-h-[120px] flex flex-col items-center justify-center text-center"
-      >
-        {realFeedItems.length > 0 ? (
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
-            End of current uploads.
-          </p>
-        ) : isLoadingMore ? (
-          <div className="flex items-center gap-3 text-gray-500">
-            <Loader2 size={18} className="animate-spin" />
+      {!isLoadingFeed && !feedError && feedItems.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
+            {feedItems.map((request) => {
+              const isExplicit = request.contentRating === 'Explicit';
+              const isRevealed = Boolean(revealed[request.id]);
+              const shouldBlur = isExplicit && !isRevealed;
 
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Loading more posts...
-            </span>
+              return (
+                <Link
+                  key={request.id}
+                  to={`/photo/${request.id}`}
+                  className="group block"
+                >
+                  <motion.article
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-300 flex flex-col shadow-xl shadow-black/20"
+                  >
+                    <div className="relative aspect-[4/5] bg-brand-black overflow-hidden">
+                      {shouldBlur && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[24px] bg-black/50">
+                          <ShieldOff
+                            size={36}
+                            className="text-brand-critique mb-4"
+                          />
+
+                          <p className="text-xs font-black uppercase tracking-[0.2em] mb-2 text-white">
+                            NSFW Content Hidden
+                          </p>
+
+                          <p className="text-[11px] text-gray-400 max-w-xs mb-4 leading-relaxed">
+                            This post is marked explicit. Reveal the preview or
+                            open the post to review it.
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={(event) =>
+                              toggleReveal(request.id, event)
+                            }
+                            className="min-h-[42px] px-5 py-2 bg-white/10 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-2"
+                          >
+                            <Eye size={14} />
+                            Reveal Preview
+                          </button>
+                        </div>
+                      )}
+
+                      <FeedImage request={request} shouldBlur={shouldBlur} />
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent opacity-80 pointer-events-none" />
+
+                      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+                        <span
+                          className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getRatingBadgeStyles(
+                            request.contentRating
+                          )}`}
+                        >
+                          {request.contentRating === 'Explicit'
+                            ? 'NSFW'
+                            : request.contentRating}
+                        </span>
+
+                        {request.contentRating === 'Suggestive' && (
+                          <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-200 border border-orange-500/30">
+                            Labeled Only
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="absolute bottom-4 left-4 z-20">
+                        <span className="px-2 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
+                          Protected Preview
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
+                        <MessageSquare size={13} />
+
+                        <span className="text-[10px] font-black">
+                          {request.reviewCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 flex flex-col gap-4">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-black uppercase tracking-tight line-clamp-2 mb-2">
+                          {request.caption}
+                        </h4>
+
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
+                          By{' '}
+                          <span className="text-white">
+                            {request.creatorName || 'Creative Member'}
+                          </span>{' '}
+                          • {request.creatorRole || 'Creative'}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
+                        {request.feedbackCategories
+                          .slice(0, 3)
+                          .map((category) => (
+                            <span
+                              key={category}
+                              className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400"
+                            >
+                              {category}
+                            </span>
+                          ))}
+
+                        {request.feedbackCategories.length > 3 && (
+                          <span className="px-2 py-1 bg-white/5 rounded-full text-[8px] font-black uppercase tracking-widest text-gray-400">
+                            +{request.feedbackCategories.length - 3}
+                          </span>
+                        )}
+
+                        <span
+                          className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${request.honestyLevel === 'Cook Me Respectfully'
+                              ? 'bg-brand-critique/10 text-brand-critique'
+                              : 'bg-brand-accent/10 text-brand-accent'
+                            }`}
+                        >
+                          {request.honestyLevel}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.article>
+                </Link>
+              );
+            })}
           </div>
-        ) : (
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
-            Keep scrolling. The critiques don’t stop.
-          </p>
-        )}
-      </div>
+
+          <div className="min-h-[120px] flex flex-col items-center justify-center text-center">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
+              End of current uploads.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

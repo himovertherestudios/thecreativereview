@@ -9,7 +9,6 @@ import {
   Zap,
   ShieldOff,
 } from 'lucide-react';
-import { RECENT_REVIEWS } from '../data';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -24,6 +23,23 @@ type PhotoBackground = {
   id: string;
   image_url: string;
   watermarked_url: string | null;
+};
+
+type RecentActivityItem = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  createdAt: string;
+  reviewCount: number;
+};
+
+type HotSeatItem = {
+  id: string;
+  imageUrl: string;
+  caption: string;
+  contentRating: string;
+  creatorRole: string;
+  reviewCount: number;
 };
 
 type DailyTip = {
@@ -41,6 +57,21 @@ type WeeklyChallenge = {
   created_at: string;
 };
 
+type SupabaseProfile = {
+  role: string | null;
+};
+
+type SupabaseHotSeatRow = {
+  id: string;
+  image_url: string | null;
+  watermarked_url: string | null;
+  caption: string | null;
+  content_rating: string | null;
+  review_count: number | null;
+  created_at: string;
+  profiles: SupabaseProfile | SupabaseProfile[] | null;
+};
+
 const FALLBACK_TIP_BG =
   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
 
@@ -48,12 +79,15 @@ const FALLBACK_VENT_BG =
   'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=80';
 
 const FALLBACK_TIP =
-  "Before you ask for critique, ask yourself what you actually want feedback on — lighting, posing, editing, styling, or emotion.";
+  'Before you ask for critique, ask yourself what you actually want feedback on — lighting, posing, editing, styling, or emotion.';
 
 const FALLBACK_CHALLENGE_TITLE = 'No Colors';
 
 const FALLBACK_CHALLENGE_DESCRIPTION =
   'Submit one black-and-white edit only. Make the mood, contrast, and story do the work.';
+
+const FALLBACK_ACTIVITY_IMAGE =
+  'https://picsum.photos/seed/creative-review-fallback/800/1000';
 
 function isFullUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -82,6 +116,16 @@ function getPublicPhotoUrl(value: string | null | undefined) {
   const { data } = supabase.storage.from('photos').getPublicUrl(cleanPath);
 
   return data.publicUrl || '';
+}
+
+function getProfileRole(profileData: SupabaseHotSeatRow['profiles']) {
+  if (!profileData) return 'Creative';
+
+  if (Array.isArray(profileData)) {
+    return profileData[0]?.role || 'Creative';
+  }
+
+  return profileData.role || 'Creative';
 }
 
 function Card({ title, icon: Icon, children, className = '' }: CardProps) {
@@ -119,6 +163,43 @@ function SwipeCard({ title, icon: Icon, children }: CardProps) {
 
       <div className="flex-1 min-h-0">{children}</div>
     </motion.section>
+  );
+}
+
+function BetaEmptyState({
+  icon: Icon,
+  title,
+  body,
+  action,
+}: {
+  icon: React.ElementType;
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="h-full min-h-[220px] rounded-3xl border border-white/10 bg-white/[0.03] p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+      <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-brand-accent/10 blur-3xl" />
+      <div className="absolute -bottom-16 -left-16 w-36 h-36 rounded-full bg-brand-critique/10 blur-3xl" />
+
+      <div className="relative z-10 w-12 h-12 rounded-2xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
+        <Icon size={24} className="text-brand-accent" />
+      </div>
+
+      <p className="relative z-10 text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-2">
+        Beta Empty State
+      </p>
+
+      <h4 className="relative z-10 text-xl font-black uppercase tracking-tight text-white mb-3">
+        {title}
+      </h4>
+
+      <p className="relative z-10 text-sm text-gray-400 leading-relaxed max-w-xs">
+        {body}
+      </p>
+
+      {action && <div className="relative z-10 mt-5">{action}</div>}
+    </div>
   );
 }
 
@@ -216,15 +297,107 @@ function pickRandomPhoto(photos: PhotoBackground[]) {
 }
 
 export default function Dashboard() {
-  const hotSeat = RECENT_REVIEWS[0];
-  const recentRequests = RECENT_REVIEWS.slice(1, 4);
-
+  const [hotSeat, setHotSeat] = useState<HotSeatItem | null>(null);
+  const [hotSeatLoading, setHotSeatLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>(
+    []
+  );
+  const [recentActivityLoading, setRecentActivityLoading] = useState(true);
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
   const [dailyTip, setDailyTip] = useState(FALLBACK_TIP);
   const [weeklyChallenge, setWeeklyChallenge] =
     useState<WeeklyChallenge | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const loadHotSeat = async () => {
+    setHotSeatLoading(true);
+
+    const { data, error } = await supabase
+      .from('photos')
+      .select(
+        `
+        id,
+        image_url,
+        watermarked_url,
+        caption,
+        content_rating,
+        review_count,
+        created_at,
+        profiles (
+          role
+        )
+      `
+      )
+      .or('is_hidden.is.null,is_hidden.eq.false')
+      .order('review_count', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      if (error) {
+        console.error('Error loading Hot Seat:', error.message);
+      }
+
+      setHotSeat(null);
+      setHotSeatLoading(false);
+      return;
+    }
+
+    const photo = data as unknown as SupabaseHotSeatRow;
+
+    const liveImageUrl = getPublicPhotoUrl(
+      photo.watermarked_url || photo.image_url
+    );
+
+    setHotSeat({
+      id: photo.id,
+      imageUrl: liveImageUrl || FALLBACK_ACTIVITY_IMAGE,
+      caption: photo.caption || 'Untitled critique post',
+      contentRating: photo.content_rating || 'Safe',
+      creatorRole: getProfileRole(photo.profiles),
+      reviewCount: photo.review_count || 0,
+    });
+
+    setHotSeatLoading(false);
+  };
+
+  const loadRecentActivity = async () => {
+    setRecentActivityLoading(true);
+
+    const { data, error } = await supabase
+      .from('photos')
+      .select('id, caption, image_url, watermarked_url, created_at, review_count')
+      .or('is_hidden.is.null,is_hidden.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error('Error loading recent activity:', error.message);
+      setRecentActivity([]);
+      setRecentActivityLoading(false);
+      return;
+    }
+
+    const mappedActivity: RecentActivityItem[] =
+      data?.map((photo) => {
+        const liveImageUrl = getPublicPhotoUrl(
+          photo.watermarked_url || photo.image_url
+        );
+
+        return {
+          id: photo.id,
+          title: photo.caption || 'Untitled Review Request',
+          imageUrl: liveImageUrl || FALLBACK_ACTIVITY_IMAGE,
+          createdAt: photo.created_at,
+          reviewCount: photo.review_count || 0,
+        };
+      }) || [];
+
+    setRecentActivity(mappedActivity);
+    setRecentActivityLoading(false);
+  };
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -256,6 +429,9 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    loadHotSeat();
+    loadRecentActivity();
+
     const loadRandomBackgrounds = async () => {
       const { data, error } = await supabase
         .from('photos')
@@ -367,61 +543,90 @@ export default function Dashboard() {
 
   const hotSeatCard = (
     <div className="flex flex-col h-full">
-      <Link
-        to={`/photo/${hotSeat.id}`}
-        className="relative aspect-[4/5] rounded-2xl overflow-hidden mb-4 group cursor-pointer block bg-brand-black"
-      >
-        {hotSeat.contentRating === 'Explicit' && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-5">
-            <ShieldOff size={32} className="text-brand-critique mb-3" />
-
-            <p className="text-[10px] font-black uppercase tracking-widest text-white">
-              NSFW Hot Seat
-            </p>
-
-            <p className="text-[10px] text-gray-400 mt-2">
-              Open to review with respect.
-            </p>
-          </div>
-        )}
-
-        <img
-          src={hotSeat.imageUrl}
-          alt="Hot seat review"
-          className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${hotSeat.contentRating === 'Explicit' ? 'blur-2xl scale-105' : ''
-            }`}
-          draggable={false}
-          onContextMenu={(event) => event.preventDefault()}
-          onError={(event) => {
-            event.currentTarget.src = FALLBACK_TIP_BG;
-          }}
+      {hotSeatLoading ? (
+        <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-gray-400 flex items-center justify-center text-center">
+          Loading the Hot Seat...
+        </div>
+      ) : !hotSeat ? (
+        <BetaEmptyState
+          icon={Flame}
+          title="No Hot Seat Yet"
+          body="Once members start uploading review requests and getting critiques, the most discussed photo will show up here."
+          action={
+            <Link
+              to="/submit"
+              className="min-h-[42px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+            >
+              Submit first <ArrowRight size={14} />
+            </Link>
+          }
         />
+      ) : (
+        <>
+          <Link
+            to={`/photo/${hotSeat.id}`}
+            className="relative aspect-[4/5] rounded-2xl overflow-hidden mb-4 group cursor-pointer block bg-brand-black"
+          >
+            {hotSeat.contentRating === 'Explicit' && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-5">
+                <ShieldOff size={32} className="text-brand-critique mb-3" />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-white">
+                  NSFW Hot Seat
+                </p>
 
-        <div className="absolute top-4 left-4">
-          <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
-            Most Discussed
-          </span>
-        </div>
+                <p className="text-[10px] text-gray-400 mt-2">
+                  Open to review with respect.
+                </p>
+              </div>
+            )}
 
-        <div className="absolute bottom-4 left-4 right-4">
-          <p className="text-[10px] font-black text-brand-accent uppercase mb-1 tracking-widest">
-            {getRatingLabel(hotSeat.contentRating)} • {hotSeat.creatorRole}
-          </p>
+            <img
+              src={hotSeat.imageUrl}
+              alt="Hot seat review"
+              className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
+                ? 'blur-2xl scale-105'
+                : ''
+                }`}
+              draggable={false}
+              onContextMenu={(event) => event.preventDefault()}
+              onError={(event) => {
+                event.currentTarget.src = FALLBACK_ACTIVITY_IMAGE;
+              }}
+            />
 
-          <p className="text-sm font-bold uppercase line-clamp-2">
-            {hotSeat.caption}
-          </p>
-        </div>
-      </Link>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
 
-      <Link
-        to={`/photo/${hotSeat.id}`}
-        className="w-full min-h-[48px] py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-brand-accent transition-colors flex items-center justify-center gap-2"
-      >
-        Drop a Review <ArrowRight size={14} />
-      </Link>
+            <div className="absolute top-4 left-4">
+              <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
+                Most Discussed
+              </span>
+            </div>
+
+            <div className="absolute bottom-4 left-4 right-4">
+              <p className="text-[10px] font-black text-brand-accent uppercase mb-1 tracking-widest">
+                {getRatingLabel(hotSeat.contentRating)} • {hotSeat.creatorRole}
+              </p>
+
+              <p className="text-sm font-bold uppercase line-clamp-2">
+                {hotSeat.caption}
+              </p>
+
+              <p className="text-[10px] text-gray-400 mt-2">
+                {hotSeat.reviewCount} critique
+                {hotSeat.reviewCount === 1 ? '' : 's'}
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            to={`/photo/${hotSeat.id}`}
+            className="w-full min-h-[48px] py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-brand-accent transition-colors flex items-center justify-center gap-2"
+          >
+            Drop a Review <ArrowRight size={14} />
+          </Link>
+        </>
+      )}
     </div>
   );
 
@@ -469,39 +674,62 @@ export default function Dashboard() {
 
   const recentActivityCard = (
     <div className="space-y-3">
-      {recentRequests.map((request) => (
-        <Link
-          key={request.id}
-          to={`/photo/${request.id}`}
-          className="min-h-[64px] flex items-center gap-3 p-3 rounded-2xl bg-brand-black/50 border border-white/5 hover:border-brand-accent/40 transition-all group"
-        >
-          <div className="w-12 aspect-[4/5] rounded-xl overflow-hidden flex-shrink-0 bg-brand-black">
-            <img
-              src={request.imageUrl}
-              alt={request.caption}
-              className={`w-full h-full object-cover ${request.contentRating === 'Explicit' ? 'blur-md scale-110' : ''
-                }`}
-              draggable={false}
-              onContextMenu={(event) => event.preventDefault()}
+      {recentActivityLoading ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
+          Loading recent activity...
+        </div>
+      ) : recentActivity.length === 0 ? (
+        <BetaEmptyState
+          icon={HelpCircle}
+          title="No Activity Yet"
+          body="Recent uploads and critique requests will appear here once beta members start posting."
+          action={
+            <Link
+              to="/submit"
+              className="min-h-[42px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+            >
+              Start the feed <ArrowRight size={14} />
+            </Link>
+          }
+        />
+      ) : (
+        recentActivity.map((item) => (
+          <Link
+            key={item.id}
+            to={`/photo/${item.id}`}
+            className="min-h-[64px] flex items-center gap-3 p-3 rounded-2xl bg-brand-black/50 border border-white/5 hover:border-brand-accent/40 transition-all group"
+          >
+            <div className="w-12 aspect-[4/5] rounded-xl overflow-hidden flex-shrink-0 bg-brand-black">
+              <img
+                src={item.imageUrl}
+                alt={item.title}
+                className="w-full h-full object-cover"
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+                onError={(event) => {
+                  event.currentTarget.src = FALLBACK_ACTIVITY_IMAGE;
+                }}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">
+                {item.reviewCount} critique
+                {item.reviewCount === 1 ? '' : 's'}
+              </p>
+
+              <p className="text-xs font-bold truncate uppercase">
+                {item.title}
+              </p>
+            </div>
+
+            <ArrowRight
+              size={16}
+              className="text-gray-600 group-hover:text-brand-accent flex-shrink-0"
             />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">
-              {getRatingLabel(request.contentRating)} • {request.creatorRole}
-            </p>
-
-            <p className="text-xs font-bold truncate uppercase">
-              {request.caption}
-            </p>
-          </div>
-
-          <ArrowRight
-            size={16}
-            className="text-gray-600 group-hover:text-brand-accent flex-shrink-0"
-          />
-        </Link>
-      ))}
+          </Link>
+        ))
+      )}
     </div>
   );
 

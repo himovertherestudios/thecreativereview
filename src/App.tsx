@@ -5,8 +5,10 @@ import {
   Route,
   Link,
   useLocation,
+  useNavigate,
   Navigate,
 } from 'react-router-dom';
+
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Camera,
@@ -18,6 +20,7 @@ import {
   ShieldCheck,
   Bell,
   Loader2,
+  LogOut,
 } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
@@ -150,9 +153,22 @@ function DesktopNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const hideNav = AUTH_ROUTES.includes(location.pathname);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('Error signing out:', error.message);
+      return;
+    }
+
+    setAvatarUrl(null);
+    navigate('/login', { replace: true });
+  };
 
   useEffect(() => {
     const loadCurrentUserProfile = async () => {
@@ -255,6 +271,16 @@ function AppLayout({ children }: { children: React.ReactNode }) {
             label="Supporter"
             active={isActiveRoute(location.pathname, '/supporter')}
           />
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-gray-400 hover:bg-red-500/10 hover:text-red-300 uppercase font-bold"
+          >
+            <LogOut size={20} />
+            <span className="text-xs tracking-widest">Log Out</span>
+          </button>
+
         </div>
       </aside>
 
@@ -269,6 +295,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="flex items-center gap-4">
           <Bell size={20} className="text-gray-400" />
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="text-gray-400 hover:text-red-300 transition-colors"
+            aria-label="Log out"
+          >
+            <LogOut size={20} />
+          </button>
 
           <Link
             to="/profile"
@@ -490,8 +525,6 @@ function AppRoutes() {
           }
         />
 
-        <Route path="/challenge-admin" element={<ChallengeAdmin />} />
-
         <Route
           path="/profile"
           element={
@@ -501,7 +534,23 @@ function AppRoutes() {
           }
         />
 
-        <Route path="/challenge-suggestion" element={<ChallengeSuggestion />} />
+        <Route
+          path="/challenge-suggestion"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <ChallengeSuggestion />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/challenge-admin"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <ChallengeAdmin />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/supporter"
