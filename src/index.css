@@ -3,12 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    background: #0b0b0b;
+  }
+
   body {
     @apply bg-crtr-black text-white antialiased;
   }
 
   * {
     @apply border-crtr-border;
+  }
+
+  ::selection {
+    @apply bg-crtr-orange text-crtr-black;
   }
 }
 
@@ -17,43 +25,84 @@
     @apply min-h-screen bg-crtr-black text-white;
   }
 
+  .crtr-section {
+    @apply space-y-5;
+  }
+
   .crtr-card {
     @apply rounded-card border border-white/10 bg-crtr-surface shadow-card;
+  }
+
+  .crtr-card-soft {
+    @apply rounded-3xl border border-white/10 bg-crtr-surface shadow-soft;
   }
 
   .crtr-card-hover {
     @apply transition duration-200 hover:-translate-y-1 hover:border-crtr-orange/40 hover:shadow-glow;
   }
 
+  .crtr-feature-card {
+    @apply relative overflow-hidden rounded-3xl border border-white/10 bg-crtr-surface shadow-card;
+  }
+
   .crtr-button-primary {
-    @apply rounded-button bg-crtr-orange px-5 py-3 font-semibold text-white transition hover:brightness-110 active:scale-95 disabled:opacity-40;
+    @apply min-h-[48px] rounded-button bg-crtr-orange px-5 py-3 text-[10px] font-black uppercase tracking-widest text-crtr-black transition hover:bg-white active:scale-95 disabled:opacity-40;
   }
 
   .crtr-button-secondary {
-    @apply rounded-button border border-white/15 bg-transparent px-5 py-3 font-semibold text-white transition hover:border-crtr-orange hover:text-crtr-orange active:scale-95;
+    @apply min-h-[48px] rounded-button border border-white/15 bg-transparent px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white transition hover:border-crtr-orange hover:text-crtr-orange active:scale-95;
+  }
+
+  .crtr-button-ghost {
+    @apply min-h-[44px] rounded-button px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/50 transition hover:bg-white/5 hover:text-white;
   }
 
   .crtr-input {
-    @apply w-full rounded-button border border-white/10 bg-crtr-surface px-4 py-3 text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
+    @apply w-full rounded-button border border-white/10 bg-crtr-black px-4 py-3 text-sm font-medium text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
+  }
+
+  .crtr-textarea {
+    @apply w-full resize-none rounded-button border border-white/10 bg-crtr-black px-4 py-3 text-sm font-medium text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
   }
 
   .crtr-label {
-    @apply text-xs font-semibold uppercase tracking-[0.18em] text-white/50;
+    @apply text-[10px] font-black uppercase tracking-[0.18em] text-white/50;
   }
 
   .crtr-badge {
-    @apply inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80;
+    @apply inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/70;
+  }
+
+  .crtr-badge-accent {
+    @apply inline-flex items-center rounded-full border border-crtr-orange/30 bg-crtr-orange/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-crtr-orange;
+  }
+
+  .crtr-badge-danger {
+    @apply inline-flex items-center rounded-full border border-crtr-red/30 bg-crtr-red/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-red-300;
   }
 
   .crtr-image-card {
-    @apply crtr-card crtr-card-hover relative aspect-[4/5] overflow-hidden;
+    @apply crtr-card crtr-card-hover relative aspect-[4/5] overflow-hidden bg-crtr-black;
   }
 
   .crtr-image-overlay {
     @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent;
   }
 
+  .crtr-protected-label {
+    @apply rounded-full border border-white/10 bg-black/50 px-3 py-2 text-[8px] font-black uppercase tracking-widest text-white/70 backdrop-blur-md;
+  }
+
   .crtr-bottom-nav {
     @apply fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-crtr-black/90 backdrop-blur-xl;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
