@@ -2,19 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Flame,
-  MessageSquare,
-  TrendingUp,
   HelpCircle,
   ArrowRight,
-  Zap,
   ShieldOff,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 type CardProps = {
-  title: string;
-  icon: React.ElementType;
   children: React.ReactNode;
   className?: string;
 };
@@ -45,6 +40,7 @@ type HotSeatItem = {
 type DailyTip = {
   id: string;
   content: string;
+  category: string | null;
   is_anonymous: boolean;
   created_at: string;
 };
@@ -128,39 +124,25 @@ function getProfileRole(profileData: SupabaseHotSeatRow['profiles']) {
   return profileData.role || 'Creative';
 }
 
-function Card({ title, icon: Icon, children, className = '' }: CardProps) {
+function Card({ children, className = '' }: CardProps) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className={`bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-6 flex flex-col min-h-[320px] ${className}`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[10px] font-black tracking-widest text-gray-400 uppercase flex items-center gap-2">
-          <Icon size={15} className="text-brand-accent" />
-          {title}
-        </h3>
-      </div>
-
       <div className="flex-1">{children}</div>
     </motion.section>
   );
 }
 
-function SwipeCard({ title, icon: Icon, children }: CardProps) {
+function SwipeCard({ children }: CardProps) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="snap-start shrink-0 w-[86vw] max-w-[380px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[420px] shadow-2xl shadow-black/20"
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[10px] font-black tracking-widest text-gray-400 uppercase flex items-center gap-2">
-          <Icon size={15} className="text-brand-accent" />
-          {title}
-        </h3>
-      </div>
-
       <div className="flex-1 min-h-0">{children}</div>
     </motion.section>
   );
@@ -279,16 +261,38 @@ function pickDailyPhoto(photos: PhotoBackground[]) {
   return photos[seed % photos.length];
 }
 
+const BETA_TIP_LAUNCH_DATE = new Date('2026-04-27T00:00:00');
+
+function getBetaTipDayIndex(totalTips: number) {
+  if (totalTips <= 0) return 0;
+
+  const now = new Date();
+  const todayMidnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+
+  const launchMidnight = new Date(
+    BETA_TIP_LAUNCH_DATE.getFullYear(),
+    BETA_TIP_LAUNCH_DATE.getMonth(),
+    BETA_TIP_LAUNCH_DATE.getDate()
+  );
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const dayDifference = Math.floor(
+    (todayMidnight.getTime() - launchMidnight.getTime()) / msPerDay
+  );
+
+  return Math.max(0, Math.min(dayDifference, totalTips - 1));
+}
+
 function pickDailyTip(tips: DailyTip[]) {
   if (tips.length === 0) return null;
 
-  const today = new Date();
-  const seed =
-    today.getFullYear() * 10000 +
-    (today.getMonth() + 1) * 100 +
-    today.getDate();
+  const dayIndex = getBetaTipDayIndex(tips.length);
 
-  return tips[seed % tips.length];
+  return tips[dayIndex];
 }
 
 function pickRandomPhoto(photos: PhotoBackground[]) {
@@ -306,6 +310,7 @@ export default function Dashboard() {
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
   const [dailyTip, setDailyTip] = useState(FALLBACK_TIP);
+  const [dailyTipCategory, setDailyTipCategory] = useState('Shooting');
   const [weeklyChallenge, setWeeklyChallenge] =
     useState<WeeklyChallenge | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -474,9 +479,9 @@ export default function Dashboard() {
     const loadDailyTip = async () => {
       const { data, error } = await supabase
         .from('tips')
-        .select('id, content, is_anonymous, created_at')
+        .select('id, content, category, is_anonymous, created_at')
         .eq('is_approved', true)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })
         .limit(100);
 
       if (error || !data || data.length === 0) {
@@ -487,6 +492,7 @@ export default function Dashboard() {
       const selectedTip = pickDailyTip(data as DailyTip[]);
 
       setDailyTip(selectedTip?.content || FALLBACK_TIP);
+      setDailyTipCategory(selectedTip?.category || 'Shooting');
     };
 
     loadDailyTip();
@@ -516,11 +522,19 @@ export default function Dashboard() {
 
   const tipCard = (
     <BackgroundFeatureCard
-      eyebrow="Tip of the Day"
+      eyebrow={`Tip of the Day • ${dailyTipCategory}`}
       title={dailyTip}
-      body="A daily creative note pulled from approved community submissions."
+      body="New tips unlock daily at midnight starting April 27. Explore past tips in the archive."
       backgroundUrl={tipBg}
       fallbackUrl={FALLBACK_TIP_BG}
+      button={
+        <Link
+          to="/tips"
+          className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+        >
+          View tip archive <ArrowRight size={14} />
+        </Link>
+      }
     />
   );
 
@@ -535,7 +549,7 @@ export default function Dashboard() {
           to="/vents"
           className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
         >
-          Join the chaos <ArrowRight size={14} />
+          Get it off your chest <ArrowRight size={14} />
         </Link>
       }
     />
@@ -733,52 +747,33 @@ export default function Dashboard() {
     </div>
   );
 
+
   return (
-    <div className="space-y-6 md:space-y-8 pb-6">
+    <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-6">
       <div className="md:hidden space-y-4">
         <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-5 scroll-smooth overscroll-x-contain no-scrollbar touch-pan-x">
-          <SwipeCard title="Tip of the Day" icon={Zap}>
-            {tipCard}
-          </SwipeCard>
+          <SwipeCard>{tipCard}</SwipeCard>
 
-          <SwipeCard title="Vent Room" icon={MessageSquare}>
-            {ventCard}
-          </SwipeCard>
+          <SwipeCard>{ventCard}</SwipeCard>
 
-          <SwipeCard title="Hot Seat" icon={Flame}>
-            {hotSeatCard}
-          </SwipeCard>
+          <SwipeCard>{hotSeatCard}</SwipeCard>
 
-          <SwipeCard title="Challenge" icon={TrendingUp}>
-            {challengeCard}
-          </SwipeCard>
+          <SwipeCard>{challengeCard}</SwipeCard>
 
-          <SwipeCard title="Recent Activity" icon={HelpCircle}>
-            {recentActivityCard}
-          </SwipeCard>
+          <SwipeCard>{recentActivityCard}</SwipeCard>
         </div>
       </div>
 
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
-        <Card title="Tip of the Day" icon={Zap} className="md:col-span-2">
-          {tipCard}
-        </Card>
+        <Card className="md:col-span-2">{tipCard}</Card>
 
-        <Card title="Vent Room" icon={MessageSquare}>
-          {ventCard}
-        </Card>
+        <Card>{ventCard}</Card>
 
-        <Card title="Hot Seat" icon={Flame} className="md:row-span-2">
-          {hotSeatCard}
-        </Card>
+        <Card className="md:row-span-2">{hotSeatCard}</Card>
 
-        <Card title="Challenge of the Week" icon={TrendingUp}>
-          {challengeCard}
-        </Card>
+        <Card>{challengeCard}</Card>
 
-        <Card title="Recent Activity" icon={HelpCircle}>
-          {recentActivityCard}
-        </Card>
+        <Card>{recentActivityCard}</Card>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">

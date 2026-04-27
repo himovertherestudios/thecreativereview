@@ -42,6 +42,7 @@ import Supporter from './pages/Supporter';
 import Login from './pages/Login';
 import ChallengeSuggestion from './pages/ChallengeSuggestion';
 import ChallengeAdmin from './pages/ChallengeAdmin';
+import TipsArchive from './pages/TipsArchive';
 
 type AppNavLinkProps = {
   to: string;
@@ -432,6 +433,15 @@ function AppRoutes() {
             <PublicOnlyRoute session={session} isAuthLoading={isAuthLoading}>
               <InviteCode />
             </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/tips"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <TipsArchive />
+            </ProtectedRoute>
           }
         />
 
