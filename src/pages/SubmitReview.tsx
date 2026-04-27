@@ -223,7 +223,7 @@ export default function SubmitReview() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-28 md:pb-0">
+    <div className="w-full max-w-3xl mx-auto space-y-8 pb-36 md:pb-0 overflow-x-hidden px-1">
       <header className="space-y-3">
         <p className="text-brand-accent text-xs font-black uppercase tracking-[0.25em]">
           Submit for Review
@@ -248,7 +248,7 @@ export default function SubmitReview() {
       />
 
       <form
-        className="space-y-8"
+        className="space-y-8 w-full max-w-full overflow-x-hidden"
         onSubmit={(event) => {
           event.preventDefault();
           handleSubmit();
@@ -256,9 +256,9 @@ export default function SubmitReview() {
       >
         <div
           onClick={() => !image && openFilePicker()}
-          className={`aspect-[4/5] sm:aspect-[4/3] rounded-3xl border-4 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden ${image
-              ? 'border-solid border-brand-accent'
-              : 'border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer'
+          className={`w-full max-w-full aspect-[4/5] sm:aspect-[4/3] rounded-3xl border-4 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden ${image
+            ? 'border-solid border-brand-accent'
+            : 'border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer'
             }`}
         >
           {image ? (
@@ -374,8 +374,8 @@ export default function SubmitReview() {
 
                 <span
                   className={`w-5 h-5 rounded-full border flex items-center justify-center ${contentRating === rating
-                      ? 'bg-white text-black border-white'
-                      : 'border-current opacity-40'
+                    ? 'bg-white text-black border-white'
+                    : 'border-current opacity-40'
                     }`}
                 >
                   {contentRating === rating && <Check size={12} strokeWidth={4} />}
@@ -408,16 +408,16 @@ export default function SubmitReview() {
                     clearError();
                   }}
                   className={`w-full py-4 text-[11px] font-black uppercase border rounded-2xl transition-all text-left px-5 flex items-center justify-between ${isSelected
-                      ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                      : 'border-white/10 text-gray-300 hover:border-white/30'
+                    ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                    : 'border-white/10 text-gray-300 hover:border-white/30'
                     }`}
                 >
                   {level}
 
                   <span
                     className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected
-                        ? 'bg-brand-accent border-brand-accent text-brand-black'
-                        : 'border-white/20'
+                      ? 'bg-brand-accent border-brand-accent text-brand-black'
+                      : 'border-white/20'
                       }`}
                   >
                     {isSelected && <Check size={12} strokeWidth={4} />}
@@ -433,7 +433,7 @@ export default function SubmitReview() {
             What do you want reviewed?
           </label>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 max-w-full overflow-hidden">
             {CRITIQUE_CATEGORIES.map((category) => {
               const isSelected = selectedCategories.includes(category);
 
@@ -443,8 +443,8 @@ export default function SubmitReview() {
                   type="button"
                   onClick={() => toggleCategory(category)}
                   className={`px-4 py-3 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${isSelected
-                      ? 'bg-white text-brand-black border-white'
-                      : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
+                    ? 'bg-white text-brand-black border-white'
+                    : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
                     }`}
                 >
                   {category}
@@ -503,8 +503,8 @@ export default function SubmitReview() {
           >
             <span
               className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ${confirmed
-                  ? 'bg-brand-accent border-brand-accent text-brand-black'
-                  : 'border-white/20'
+                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                : 'border-white/20'
                 }`}
             >
               {confirmed && <Check size={15} strokeWidth={4} />}
@@ -547,36 +547,38 @@ export default function SubmitReview() {
         </button>
       </form>
 
-      <div className="md:hidden fixed bottom-20 left-0 right-0 p-4 bg-brand-black/90 backdrop-blur-xl border-t border-white/10 z-30">
-        <button
-          type="button"
-          disabled={!canSubmit}
-          onClick={handleSubmit}
-          className="w-full py-4 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              Uploading
-            </>
-          ) : (
-            <>
-              Submit For Review <ArrowRight size={18} />
-            </>
+      <div className="md:hidden fixed bottom-20 left-0 right-0 p-4 bg-brand-black/90 backdrop-blur-xl border-t border-white/10 z-30 overflow-x-hidden">
+        <div className="max-w-[430px] mx-auto">
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={handleSubmit}
+            className="w-full py-4 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Uploading
+              </>
+            ) : (
+              <>
+                Submit For Review <ArrowRight size={18} />
+              </>
+            )}
+          </button>
+
+          {!canSubmit && !isSubmitting && (
+            <p className="text-center text-[10px] text-gray-500 mt-2 uppercase tracking-widest">
+              Add image, rating, honesty level, category, and permission.
+            </p>
           )}
-        </button>
 
-        {!canSubmit && !isSubmitting && (
-          <p className="text-center text-[10px] text-gray-500 mt-2 uppercase tracking-widest">
-            Add image, rating, honesty level, category, and permission.
-          </p>
-        )}
-
-        {submitError && (
-          <p className="text-center text-[10px] text-brand-critique mt-2 uppercase tracking-widest">
-            {submitError}
-          </p>
-        )}
+          {submitError && (
+            <p className="text-center text-[10px] text-brand-critique mt-2 uppercase tracking-widest">
+              {submitError}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

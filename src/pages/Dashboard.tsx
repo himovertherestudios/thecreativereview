@@ -581,8 +581,8 @@ export default function Dashboard() {
               src={hotSeat.imageUrl}
               alt="Most discussed review"
               className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
-                  ? 'blur-2xl scale-105'
-                  : ''
+                ? 'blur-2xl scale-105'
+                : ''
                 }`}
               draggable={false}
               onContextMenu={(event) => event.preventDefault()}
@@ -664,6 +664,14 @@ export default function Dashboard() {
             className="min-h-[48px] px-6 py-3 rounded-2xl bg-brand-accent text-brand-black border border-brand-accent flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] hover:bg-white transition-all"
           >
             Manage challenges <ArrowRight size={14} />
+          </Link>
+        )}
+        {isAdmin && (
+          <Link
+            to="/analytics-admin"
+            className="min-h-[48px] px-6 py-3 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-gray-300 hover:text-white hover:border-white/20 transition-all"
+          >
+            View Analytics <ArrowRight size={14} />
           </Link>
         )}
       </div>

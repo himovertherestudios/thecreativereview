@@ -42,6 +42,7 @@ import Login from './pages/Login';
 import ChallengeSuggestion from './pages/ChallengeSuggestion';
 import ChallengeAdmin from './pages/ChallengeAdmin';
 import TipsArchive from './pages/TipsArchive';
+import AnalyticsAdmin from './pages/AnalyticsAdmin';
 
 type AppNavLinkProps = {
   to: string;
@@ -134,8 +135,8 @@ function DesktopNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
     <Link
       to={to}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
-          ? 'bg-brand-accent text-brand-black font-bold uppercase'
-          : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
+        ? 'bg-brand-accent text-brand-black font-bold uppercase'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
         }`}
     >
       <Icon size={20} />
@@ -491,6 +492,15 @@ function AppRoutes() {
         />
 
         <Route
+          path="/analytics-admin"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <AnalyticsAdmin />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/photo/:id"
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
@@ -519,6 +529,15 @@ function AppRoutes() {
 
         <Route
           path="/profile"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile/:userId"
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
               <Profile />

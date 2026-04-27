@@ -16,7 +16,7 @@ import {
   X,
   ImageOff,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { FAKE_USER } from '../data';
 import { supabase } from '../lib/supabase';
 
@@ -94,6 +94,8 @@ function normalizeWebsite(url: string) {
 
 export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { userId } = useParams();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('frames');
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -138,6 +140,8 @@ export default function Profile() {
   const instagramUrl = cleanUsername
     ? `https://www.instagram.com/${cleanUsername}`
     : '';
+  const viewedProfileId = userId || currentUserId;
+  const isOwnProfile = Boolean(currentUserId && viewedProfileId === currentUserId);
 
   const critiqueItems = profilePhotos.slice(0, 3).map((photo, index) => ({
     id: `critique-${photo.id}`,
@@ -178,6 +182,7 @@ export default function Profile() {
       if (userError) throw userError;
 
       if (!user) {
+        setCurrentUserId(null);
         setProfile(null);
         setProfilePhotos([]);
         setStats({
@@ -187,6 +192,10 @@ export default function Profile() {
         });
         return;
       }
+
+      setCurrentUserId(user.id);
+
+      const targetProfileId = userId || user.id;
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -203,7 +212,7 @@ export default function Profile() {
           avatar_url
         `
         )
-        .eq('id', user.id)
+        .eq('id', targetProfileId)
         .maybeSingle();
 
       if (profileError) throw profileError;
@@ -226,7 +235,7 @@ export default function Profile() {
           created_at
         `
         )
-        .eq('user_id', user.id)
+        .eq('user_id', targetProfileId)
         .order('created_at', { ascending: false });
 
       if (photosError) throw photosError;
@@ -238,7 +247,7 @@ export default function Profile() {
       const { count: reviewsGivenCount, error: reviewsGivenError } = await supabase
         .from('critiques')
         .select('id', { count: 'exact', head: true })
-        .eq('reviewer_id', user.id);
+        .eq('reviewer_id', targetProfileId);
 
       if (reviewsGivenError) {
         console.warn('Reviews given count error:', reviewsGivenError);
@@ -269,7 +278,7 @@ export default function Profile() {
 
   useEffect(() => {
     loadProfile();
-  }, []);
+  }, [userId]);
 
   const handleEditFormChange = (
     field: keyof EditProfileForm,
@@ -445,9 +454,11 @@ export default function Profile() {
   return (
     <div className="space-y-6 pb-20">
       <section className="bg-brand-black border border-white/10 rounded-3xl p-5 md:p-6">
-        <div className="flex items-start gap-4 md:gap-6">
-          <div className="relative w-24 h-24 md:w-28 md:h-28 rounded-full border-2 border-white/15 overflow-hidden flex-shrink-0 bg-brand-gray">
-            <img
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6 text-center md:text-left">
+          <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-brand-gray shadow-lg">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/70 backdrop-blur-md text-[8px] uppercase tracking-widest font-black text-white rounded-full border border-white/10">
+              {role}
+            </div> <img
               src={avatarUrl}
               alt={displayName}
               className="w-full h-full object-cover"
@@ -464,31 +475,31 @@ export default function Profile() {
             )}
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="flex-1 w-full">
+            <div className="grid grid-cols-3 gap-2 md:gap-4 text-center mt-4">
               <div>
-                <p className="text-lg md:text-2xl font-black text-white">
+                <p className="text-xl md:text-3xl font-black text-white">
                   {stats.framesUploaded}
                 </p>
-                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
                   Frames
                 </p>
               </div>
 
               <div>
-                <p className="text-lg md:text-2xl font-black text-white">
+                <p className="text-xl md:text-3xl font-black text-white">
                   {stats.reviewsReceived}
                 </p>
-                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
                   Received
                 </p>
               </div>
 
               <div>
-                <p className="text-lg md:text-2xl font-black text-white">
+                <p className="text-xl md:text-3xl font-black text-white">
                   {stats.reviewsGiven}
                 </p>
-                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
                   Given
                 </p>
               </div>
@@ -496,9 +507,9 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-6 space-y-4">
           <div>
-            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
               {isLoadingProfile ? 'Loading...' : displayName}
             </h1>
 
@@ -517,7 +528,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <p className="text-sm text-gray-300 leading-relaxed max-w-2xl">
+          <p className="text-sm text-gray-300 leading-relaxed max-w-xl mx-auto md:mx-0">
             {bio}
           </p>
 
@@ -555,31 +566,26 @@ export default function Profile() {
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setIsEditingProfile((current) => !current);
-                syncEditForm(profile);
-                setProfileMessage('');
-                setAvatarMessage('');
-              }}
-              className="min-h-[46px] rounded-xl bg-brand-gray border border-white/10 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center"
-            >
-              Edit Profile
-            </button>
-
-            <Link
-              to="/feed"
-              className="min-h-[46px] rounded-xl bg-brand-gray border border-white/10 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center"
-            >
-              Browse Feed
-            </Link>
-          </div>
+          {isOwnProfile && (
+            <div className="grid grid-cols-1 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingProfile((current) => !current);
+                  syncEditForm(profile);
+                  setProfileMessage('');
+                  setAvatarMessage('');
+                }}
+                className="min-h-[46px] rounded-xl bg-brand-accent text-brand-black font-black uppercase text-[10px] tracking-widest flex items-center justify-center shadow-md hover:scale-[1.02] transition-all"
+              >
+                Edit Profile
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
-      {isEditingProfile && (
+      {isOwnProfile && isEditingProfile && (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
