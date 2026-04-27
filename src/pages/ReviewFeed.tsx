@@ -70,11 +70,7 @@ function getFallbackImage(seed: string | undefined) {
 
 function getProfile(profileData: SupabasePhotoRow['profiles']) {
   if (!profileData) return null;
-
-  if (Array.isArray(profileData)) {
-    return profileData[0] || null;
-  }
-
+  if (Array.isArray(profileData)) return profileData[0] || null;
   return profileData;
 }
 
@@ -87,14 +83,14 @@ function getBestPhotoImageUrl(photo: SupabasePhotoRow) {
 
 function getRatingBadgeStyles(rating: ContentRating) {
   if (rating === 'Safe') {
-    return 'bg-green-500/20 text-green-300 border border-green-500/40';
+    return 'bg-green-500/10 text-green-300 border border-green-500/30';
   }
 
   if (rating === 'Suggestive') {
-    return 'bg-orange-500/20 text-orange-300 border border-orange-500/40';
+    return 'bg-orange-500/10 text-orange-300 border border-orange-500/30';
   }
 
-  return 'bg-red-500/20 text-red-300 border border-red-500/40';
+  return 'bg-red-500/10 text-red-300 border border-red-500/30';
 }
 
 function mapSupabasePhotoToReviewRequest(
@@ -113,8 +109,7 @@ function mapSupabasePhotoToReviewRequest(
     allowAnonymous: Boolean(photo.allow_anonymous),
     createdAt: photo.created_at,
     reviewCount: photo.review_count || 0,
-    creatorName:
-      profile?.display_name || profile?.username || 'Creative Member',
+    creatorName: profile?.display_name || profile?.username || 'Creative Member',
     creatorRole: profile?.role || 'Creative',
   };
 }
@@ -226,9 +221,7 @@ export default function ReviewFeed() {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const mappedFeed = (data || []).map((photo) =>
         mapSupabasePhotoToReviewRequest(photo as unknown as SupabasePhotoRow)
@@ -352,9 +345,7 @@ export default function ReviewFeed() {
 
                           <button
                             type="button"
-                            onClick={(event) =>
-                              toggleReveal(request.id, event)
-                            }
+                            onClick={(event) => toggleReveal(request.id, event)}
                             className="min-h-[42px] px-5 py-2 bg-white/10 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-2"
                           >
                             <Eye size={14} />
@@ -364,10 +355,10 @@ export default function ReviewFeed() {
                       )}
 
                       <FeedImage request={request} shouldBlur={shouldBlur} />
+                    </div>
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent opacity-80 pointer-events-none" />
-
-                      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+                    <div className="p-5 flex flex-col gap-4">
+                      <div className="flex items-center justify-between gap-3">
                         <span
                           className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getRatingBadgeStyles(
                             request.contentRating
@@ -378,29 +369,14 @@ export default function ReviewFeed() {
                             : request.contentRating}
                         </span>
 
-                        {request.contentRating === 'Suggestive' && (
-                          <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-200 border border-orange-500/30">
-                            Labeled Only
+                        <span className="flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
+                          <MessageSquare size={13} />
+                          <span className="text-[10px] font-black">
+                            {request.reviewCount}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="absolute bottom-4 left-4 z-20">
-                        <span className="px-2 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
-                          Protected Preview
                         </span>
                       </div>
 
-                      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
-                        <MessageSquare size={13} />
-
-                        <span className="text-[10px] font-black">
-                          {request.reviewCount}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-5 flex flex-col gap-4">
                       <div className="min-w-0">
                         <h4 className="text-sm font-black uppercase tracking-tight line-clamp-2 mb-2">
                           {request.caption}

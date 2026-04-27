@@ -6,7 +6,6 @@ import {
     EyeOff,
     User,
     Send,
-    AlertTriangle,
     ThumbsUp,
     MessageSquare,
     Reply,
@@ -14,7 +13,7 @@ import {
     AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createReport } from '../lib/reports';
+
 
 type VentPostMode = 'self' | 'anon';
 
@@ -226,11 +225,6 @@ export default function VentDetail() {
         {}
     );
     const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
-
-    const [isReporting, setIsReporting] = useState<Record<string, boolean>>({});
-    const [reportMessages, setReportMessages] = useState<Record<string, string>>(
-        {}
-    );
 
     const canComment = Boolean(vent) && commentText.trim().length >= 2 && !isPostingComment;
     const upvoteCount = vent?.upvotes || 0;
@@ -628,59 +622,6 @@ export default function VentDetail() {
         }
     };
 
-    const handleReportContent = async (
-        contentType: 'vent' | 'vent_comment' | 'vent_reply',
-        contentId: string
-    ) => {
-        const reportKey = `${contentType}-${contentId}`;
-
-        if (isReporting[reportKey]) return;
-
-        const confirmed = window.confirm(
-            'Report this content for review? Use this for doxxing, harassment, threats, or content that breaks the community rules.'
-        );
-
-        if (!confirmed) return;
-
-        setIsReporting((current) => ({
-            ...current,
-            [reportKey]: true,
-        }));
-
-        setReportMessages((current) => ({
-            ...current,
-            [reportKey]: '',
-        }));
-
-        try {
-            await createReport({
-                contentType,
-                contentId,
-                reason: 'user_reported',
-                details: 'Reported from the Vent Detail thread page.',
-            });
-
-            setReportMessages((current) => ({
-                ...current,
-                [reportKey]: 'Report sent. We’ll review it.',
-            }));
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : 'Something went wrong while sending the report.';
-
-            setReportMessages((current) => ({
-                ...current,
-                [reportKey]: message,
-            }));
-        } finally {
-            setIsReporting((current) => ({
-                ...current,
-                [reportKey]: false,
-            }));
-        }
-    };
 
     if (isLoadingVent) {
         return (
@@ -705,7 +646,7 @@ export default function VentDetail() {
                         onClick={() => navigate(-1)}
                         className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
                     >
-                        <ChevronLeft size={18} /> Back to vents
+                        <ChevronLeft size={18} /> Back to Vent Session
                     </button>
 
                     <BetaEmptyState
@@ -782,8 +723,8 @@ export default function VentDetail() {
                                         disabled={isUpvoting}
                                         onClick={handleToggleUpvote}
                                         className={`min-h-[36px] px-3 rounded-full border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 ${hasUpvoted
-                                                ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
-                                                : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
+                                            ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
+                                            : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
                                             }`}
                                     >
                                         {isUpvoting ? (
@@ -807,22 +748,14 @@ export default function VentDetail() {
                                     </div>
                                 )}
 
-                                {reportMessages[`vent-${vent.id}`] && (
-                                    <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
-                                        <p className="text-[9px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                                            {reportMessages[`vent-${vent.id}`]}
-                                        </p>
-                                    </div>
-                                )}
-
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <button
                                         type="button"
                                         disabled={isUpvoting}
                                         onClick={handleToggleUpvote}
                                         className={`min-h-[36px] px-3 rounded-full border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 ${hasUpvoted
-                                                ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
-                                                : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
+                                            ? 'bg-brand-accent/15 border-brand-accent/40 text-brand-accent'
+                                            : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
                                             }`}
                                     >
                                         <ThumbsUp size={14} />
@@ -842,117 +775,14 @@ export default function VentDetail() {
                                         Comment
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        disabled={Boolean(isReporting[`vent-${vent.id}`])}
-                                        onClick={() => handleReportContent('vent', vent.id)}
-                                        className="min-h-[36px] px-3 rounded-full border border-white/10 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-brand-critique hover:border-brand-critique transition-all disabled:opacity-50"
-                                    >
-                                        {isReporting[`vent-${vent.id}`] ? (
-                                            <Loader2 size={13} className="animate-spin" />
-                                        ) : (
-                                            <AlertTriangle size={13} />
-                                        )}
-                                        Report
-                                    </button>
                                 </div>
 
-                                <div className="flex items-start gap-3 p-4 bg-brand-black/60 rounded-2xl border border-brand-critique/20">
-                                    <AlertTriangle
-                                        size={17}
-                                        className="text-brand-critique flex-shrink-0 mt-0.5"
-                                    />
 
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 leading-relaxed">
-                                        Keep it funny, useful, and clean. No names, no doxxing, no
-                                        screenshots, no personal attacks.
-                                    </p>
-                                </div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <section className="bg-brand-gray border border-white/10 rounded-3xl p-4 md:p-5">
-                    <div className="flex gap-3">
-                        <div className="w-10 h-10 rounded-full border border-brand-accent/30 overflow-hidden flex-shrink-0">
-                            <IdentityAvatar isAnonymous={commentMode === 'anon'} />
-                        </div>
-
-                        <div className="flex-1 min-w-0 space-y-4">
-                            <div className="flex items-center gap-2 text-gray-600">
-                                <MessageSquare size={14} />
-
-                                <p className="text-[10px] font-black uppercase tracking-widest">
-                                    Add to the thread
-                                </p>
-                            </div>
-
-                            <textarea
-                                id="thread-comment-box"
-                                value={commentText}
-                                onChange={(event) => handleCommentChange(event.target.value)}
-                                rows={4}
-                                placeholder="Add a comment, joke, cosign, or useful perspective..."
-                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
-                            />
-
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-white/10">
-                                <div className="grid grid-cols-2 gap-2 sm:flex">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCommentMode('self')}
-                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'self'
-                                                ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                : 'border-white/20 text-gray-500 hover:text-white'
-                                            }`}
-                                    >
-                                        <User size={14} />
-                                        As me
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setCommentMode('anon')}
-                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'anon'
-                                                ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                : 'border-white/20 text-gray-500 hover:text-white'
-                                            }`}
-                                    >
-                                        <EyeOff size={14} />
-                                        Anon
-                                    </button>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    disabled={!canComment}
-                                    onClick={handlePostComment}
-                                    className="min-h-[42px] px-5 bg-white text-brand-black rounded-full font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-                                >
-                                    {isPostingComment ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin" />
-                                            Posting
-                                        </>
-                                    ) : (
-                                        <>
-                                            Comment <Send size={14} />
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-
-                            {commentError && (
-                                <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
-                                    <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                                        {commentError}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </section>
 
                 <section className="space-y-3">
                     <div className="flex items-center justify-between px-1">
@@ -1008,8 +838,8 @@ export default function VentDetail() {
                                         initial={{ opacity: 0, y: 8 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         className={`p-4 md:p-5 hover:bg-white/[0.025] transition-all ${index !== comments.length - 1
-                                                ? 'border-b border-white/10'
-                                                : ''
+                                            ? 'border-b border-white/10'
+                                            : ''
                                             }`}
                                     >
                                         <div className="flex gap-3">
@@ -1039,36 +869,14 @@ export default function VentDetail() {
                                                         </p>
                                                     </div>
 
-                                                    <button
-                                                        type="button"
-                                                        disabled={Boolean(
-                                                            isReporting[`vent_comment-${comment.id}`]
-                                                        )}
-                                                        onClick={() =>
-                                                            handleReportContent('vent_comment', comment.id)
-                                                        }
-                                                        className="min-h-[30px] px-3 rounded-full border border-white/10 text-gray-600 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                                                    >
-                                                        {isReporting[`vent_comment-${comment.id}`] ? (
-                                                            <Loader2 size={11} className="animate-spin" />
-                                                        ) : (
-                                                            <AlertTriangle size={11} />
-                                                        )}
-                                                        Report
-                                                    </button>
+
                                                 </div>
 
                                                 <p className="text-sm md:text-base text-gray-300 leading-relaxed whitespace-pre-wrap">
                                                     {renderTextWithMentions(comment.content)}
                                                 </p>
 
-                                                {reportMessages[`vent_comment-${comment.id}`] && (
-                                                    <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
-                                                        <p className="text-[8px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                                                            {reportMessages[`vent_comment-${comment.id}`]}
-                                                        </p>
-                                                    </div>
-                                                )}
+
 
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <button
@@ -1079,8 +887,8 @@ export default function VentDetail() {
                                                             )
                                                         }
                                                         className={`min-h-[34px] px-3 rounded-full border text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${isReplyOpen
-                                                                ? 'bg-white/10 border-white/20 text-white'
-                                                                : 'border-white/10 text-gray-500 hover:text-brand-accent hover:border-brand-accent/30'
+                                                            ? 'bg-white/10 border-white/20 text-white'
+                                                            : 'border-white/10 text-gray-500 hover:text-brand-accent hover:border-brand-accent/30'
                                                             }`}
                                                     >
                                                         <Reply size={13} />
@@ -1123,48 +931,14 @@ export default function VentDetail() {
                                                                         </p>
                                                                     </div>
 
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={Boolean(
-                                                                            isReporting[`vent_reply-${replyItem.id}`]
-                                                                        )}
-                                                                        onClick={() =>
-                                                                            handleReportContent(
-                                                                                'vent_reply',
-                                                                                replyItem.id
-                                                                            )
-                                                                        }
-                                                                        className="min-h-[28px] px-2 rounded-full border border-white/10 text-gray-600 hover:text-brand-critique hover:border-brand-critique flex items-center gap-1 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                                                                    >
-                                                                        {isReporting[
-                                                                            `vent_reply-${replyItem.id}`
-                                                                        ] ? (
-                                                                            <Loader2
-                                                                                size={10}
-                                                                                className="animate-spin"
-                                                                            />
-                                                                        ) : (
-                                                                            <AlertTriangle size={10} />
-                                                                        )}
-                                                                        Report
-                                                                    </button>
+
                                                                 </div>
 
                                                                 <p className="text-xs md:text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
                                                                     {renderTextWithMentions(replyItem.content)}
                                                                 </p>
 
-                                                                {reportMessages[`vent_reply-${replyItem.id}`] && (
-                                                                    <div className="p-2 bg-brand-black/60 border border-white/10 rounded-xl">
-                                                                        <p className="text-[8px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                                                                            {
-                                                                                reportMessages[
-                                                                                `vent_reply-${replyItem.id}`
-                                                                                ]
-                                                                            }
-                                                                        </p>
-                                                                    </div>
-                                                                )}
+
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1189,8 +963,8 @@ export default function VentDetail() {
                                                                     setReplyModeForComment(comment.id, 'self')
                                                                 }
                                                                 className={`min-h-[40px] rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'self'
-                                                                        ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                                        : 'border-white/20 text-gray-500 hover:text-white'
+                                                                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                                    : 'border-white/20 text-gray-500 hover:text-white'
                                                                     }`}
                                                             >
                                                                 <User size={13} />
@@ -1203,8 +977,8 @@ export default function VentDetail() {
                                                                     setReplyModeForComment(comment.id, 'anon')
                                                                 }
                                                                 className={`min-h-[40px] rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${replyMode === 'anon'
-                                                                        ? 'bg-brand-accent border-brand-accent text-brand-black'
-                                                                        : 'border-white/20 text-gray-500 hover:text-white'
+                                                                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                                    : 'border-white/20 text-gray-500 hover:text-white'
                                                                     }`}
                                                             >
                                                                 <EyeOff size={13} />
@@ -1247,6 +1021,87 @@ export default function VentDetail() {
                         </div>
                     )}
                 </section>
+                <section className="bg-brand-gray border border-white/10 rounded-3xl p-4 md:p-5">
+                    <div className="flex gap-3">
+                        <div className="w-10 h-10 rounded-full border border-brand-accent/30 overflow-hidden flex-shrink-0">
+                            <IdentityAvatar isAnonymous={commentMode === 'anon'} />
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-4">
+                            <div className="flex items-center gap-2 text-gray-600">
+                                <MessageSquare size={14} />
+
+                                <p className="text-[10px] font-black uppercase tracking-widest">
+                                    Add to the thread
+                                </p>
+                            </div>
+
+                            <textarea
+                                id="thread-comment-box"
+                                value={commentText}
+                                onChange={(event) => handleCommentChange(event.target.value)}
+                                rows={4}
+                                placeholder="Add a comment, joke, cosign, or useful perspective..."
+                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
+                            />
+
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-white/10">
+                                <div className="grid grid-cols-2 gap-2 sm:flex">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCommentMode('self')}
+                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'self'
+                                            ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                            : 'border-white/20 text-gray-500 hover:text-white'
+                                            }`}
+                                    >
+                                        <User size={14} />
+                                        As me
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setCommentMode('anon')}
+                                        className={`min-h-[40px] px-4 rounded-full border flex items-center justify-center gap-2 transition-all text-[9px] font-black uppercase tracking-widest ${commentMode === 'anon'
+                                            ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                            : 'border-white/20 text-gray-500 hover:text-white'
+                                            }`}
+                                    >
+                                        <EyeOff size={14} />
+                                        Anon
+                                    </button>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={!canComment}
+                                    onClick={handlePostComment}
+                                    className="min-h-[42px] px-5 bg-white text-brand-black rounded-full font-black uppercase text-[10px] tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+                                >
+                                    {isPostingComment ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Posting
+                                        </>
+                                    ) : (
+                                        <>
+                                            Comment <Send size={14} />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {commentError && (
+                                <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
+                                    <p className="text-[9px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                                        {commentError}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </section>
+
             </div>
         </div>
     );

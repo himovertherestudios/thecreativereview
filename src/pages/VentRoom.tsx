@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 type VentPostMode = 'self' | 'anon';
 
@@ -396,6 +397,13 @@ export default function VentRoom() {
       );
 
       setLocalVents((current) => [newVent, ...current]);
+
+      await trackEvent('vent_posted', 'VentRoom', {
+        vent_id: newVent.id,
+        is_anonymous: postMode === 'anon',
+        content_length: ventText.trim().length,
+      });
+
       setVentText('');
       setPostMode('anon');
     } catch (error) {
@@ -428,16 +436,24 @@ export default function VentRoom() {
       const hasAlreadyUpvoted = Boolean(upvoted[vent.id]);
 
       if (!isRealVent) {
+        const nextUpvoteCount = hasAlreadyUpvoted
+          ? Math.max(0, vent.upvotes - 1)
+          : vent.upvotes + 1;
+
         setUpvoted((current) => ({
           ...current,
           [vent.id]: !current[vent.id],
         }));
 
-        updateVentCountInState(
-          vent.id,
-          hasAlreadyUpvoted
-            ? Math.max(0, vent.upvotes - 1)
-            : vent.upvotes + 1
+        updateVentCountInState(vent.id, nextUpvoteCount);
+
+        await trackEvent(
+          hasAlreadyUpvoted ? 'vent_upvote_removed' : 'vent_upvoted',
+          'VentRoom',
+          {
+            vent_id: vent.id,
+            next_upvote_count: nextUpvoteCount,
+          }
         );
 
         return;
@@ -560,6 +576,13 @@ export default function VentRoom() {
         ...current,
         [ventId]: '',
       }));
+
+      await trackEvent('vent_commented', 'VentRoom', {
+        vent_id: ventId,
+        comment_id: newComment.id,
+        is_anonymous: getCommentMode(ventId) === 'anon',
+        content_length: draft.trim().length,
+      });
 
       setCommentModeForVent(ventId, 'anon');
       setActiveCommentVentId(null);
