@@ -35,24 +35,7 @@ type StatCardProps = {
     icon: React.ElementType;
 };
 
-const topEvent = eventBreakdown[0];
-{
-    topEvent && (
-        <div className="p-4 rounded-2xl bg-brand-accent/10 border border-brand-accent/20">
-            <p className="text-[10px] uppercase font-black tracking-widest text-brand-accent">
-                Most Used Feature
-            </p>
 
-            <h3 className="text-lg font-black mt-1">
-                {cleanEventName(topEvent.eventName)}
-            </h3>
-
-            <p className="text-xs text-gray-400 mt-1">
-                {topEvent.count} actions
-            </p>
-        </div>
-    )
-}
 function StatCard({ label, value, icon: Icon }: StatCardProps) {
     return (
         <div className="rounded-3xl border border-white/10 bg-brand-gray p-5">
@@ -178,6 +161,8 @@ export default function AnalyticsAdmin() {
             .map(([eventName, count]) => ({ eventName, count }))
             .sort((a, b) => b.count - a.count);
     }, [events]);
+
+    const topEvent = eventBreakdown[0];
 
     const getProfileName = (userId: string | null) => {
         if (!userId) return 'Unknown user';
@@ -351,6 +336,21 @@ export default function AnalyticsAdmin() {
                         <StatCard label="Daily Active Users" value={dailyActiveUsers} icon={Eye} />
                     </section>
 
+                    {topEvent && (
+                        <section className="p-4 rounded-2xl bg-brand-accent/10 border border-brand-accent/20">
+                            <p className="text-[10px] uppercase font-black tracking-widest text-brand-accent">
+                                Most Used Feature
+                            </p>
+
+                            <h3 className="text-lg font-black mt-1 uppercase">
+                                {cleanEventName(topEvent.eventName)}
+                            </h3>
+
+                            <p className="text-xs text-gray-400 mt-1">
+                                {topEvent.count} actions
+                            </p>
+                        </section>
+                    )}
                     <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                         <div className="rounded-3xl border border-white/10 bg-brand-gray p-5 space-y-4">
                             <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
