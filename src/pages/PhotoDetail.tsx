@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import {
   ChevronLeft,
   Instagram,
-  MoreHorizontal,
   MessageSquare,
   Skull,
   Check,
@@ -15,13 +14,11 @@ import {
   Send,
   Loader2,
   AlertCircle,
-  AlertTriangle,
   Camera,
   ArrowRight,
 } from 'lucide-react';
 import { ContentRating, Critique, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
-import { createReport } from '../lib/reports';
 import { trackEvent } from '../lib/analytics';
 
 type CritiqueType = 'self' | 'anon';
@@ -259,10 +256,6 @@ export default function PhotoDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pageError, setPageError] = useState('');
   const [submitError, setSubmitError] = useState('');
-  const [isReporting, setIsReporting] = useState<Record<string, boolean>>({});
-  const [reportMessages, setReportMessages] = useState<Record<string, string>>(
-    {}
-  );
   const [displayImageUrl, setDisplayImageUrl] = useState('');
 
   const photo = realPhoto;
@@ -276,7 +269,6 @@ export default function PhotoDetail() {
     Boolean(photo) &&
     whatWorks.trim().length > 2 &&
     whatNeedsWork.trim().length > 2 &&
-    quickFix.trim().length > 2 &&
     Boolean(portfolioReady) &&
     !isSubmitting;
 
@@ -437,62 +429,6 @@ export default function PhotoDetail() {
     }
   };
 
-  const handleReportContent = async (
-    contentType: 'photo' | 'critique',
-    contentId: string
-  ) => {
-    const reportKey = `${contentType}-${contentId}`;
-
-    if (isReporting[reportKey]) return;
-
-    const label = contentType === 'photo' ? 'photo' : 'critique';
-
-    const confirmed = window.confirm(
-      `Report this ${label} for review? Use this for stolen work, harassment, doxxing, unsafe content, or anything that breaks the community rules.`
-    );
-
-    if (!confirmed) return;
-
-    setIsReporting((current) => ({
-      ...current,
-      [reportKey]: true,
-    }));
-
-    setReportMessages((current) => ({
-      ...current,
-      [reportKey]: '',
-    }));
-
-    try {
-      await createReport({
-        contentType,
-        contentId,
-        reason: 'user_reported',
-        details: `Reported ${label} from the photo detail page.`,
-      });
-
-      setReportMessages((current) => ({
-        ...current,
-        [reportKey]: 'Report sent. We’ll review it.',
-      }));
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong while sending the report.';
-
-      setReportMessages((current) => ({
-        ...current,
-        [reportKey]: message,
-      }));
-    } finally {
-      setIsReporting((current) => ({
-        ...current,
-        [reportKey]: false,
-      }));
-    }
-  };
-
   const resetCritiqueForm = () => {
     setWhatWorks('');
     setWhatNeedsWork('');
@@ -529,7 +465,7 @@ export default function PhotoDetail() {
           is_anonymous: critiqueType === 'anon',
           what_works: whatWorks.trim(),
           what_needs_work: whatNeedsWork.trim(),
-          quick_fix: quickFix.trim(),
+          quick_fix: quickFix.trim() || '',
           portfolio_ready: portfolioReady || 'Almost',
           rating: 4,
         })
@@ -631,22 +567,12 @@ export default function PhotoDetail() {
             'This photo may have been deleted, hidden by moderation, or the link may be outdated.'
           }
           action={
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                to="/feed"
-                className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
-              >
-                Back to feed <ArrowRight size={14} />
-              </Link>
-
-              <button
-                type="button"
-                onClick={loadPhotoDetail}
-                className="min-h-[44px] px-5 py-3 bg-white/5 border border-white/10 text-gray-300 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:text-white hover:border-white/20 transition-all"
-              >
-                Try again
-              </button>
-            </div>
+            <Link
+              to="/feed"
+              className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+            >
+              Back to feed <ArrowRight size={14} />
+            </Link>
           }
         />
       </div>
@@ -666,30 +592,6 @@ export default function PhotoDetail() {
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
         <div className="flex-1 space-y-5">
           <div className="relative rounded-3xl overflow-hidden bg-brand-gray/50 border border-white/5 aspect-[4/5] max-h-[820px]">
-            {shouldBlur && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center backdrop-blur-[36px] bg-black/60">
-                <ShieldOff size={48} className="text-brand-critique mb-6" />
-
-                <h3 className="text-2xl font-black uppercase tracking-tighter mb-2">
-                  NSFW Content
-                </h3>
-
-                <p className="text-gray-400 mb-8 max-w-xs font-medium text-xs leading-relaxed">
-                  This image is marked explicit. Continue with respect. Critique
-                  the work, not the person.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => setRevealed(true)}
-                  className="min-h-[48px] px-8 py-4 bg-white text-brand-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-accent transition-all flex items-center gap-2"
-                >
-                  <Eye size={16} />
-                  Reveal Image
-                </button>
-              </div>
-            )}
-
             <img
               src={displayImageUrl}
               alt={photo.caption}
@@ -699,415 +601,143 @@ export default function PhotoDetail() {
               onError={handleImageError}
               onContextMenu={(event) => event.preventDefault()}
             />
-
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-              <div className="px-6 py-3 md:px-12 md:py-6 border-4 border-white/10 text-white/5 text-xl md:text-4xl font-black uppercase tracking-[0.5em] md:tracking-[1em] rotate-12 whitespace-nowrap">
-                {photo.creatorName || 'Creative Review'} Proof
-              </div>
-            </div>
-
-            <div className="absolute bottom-4 left-4 z-20">
-              <span className="px-3 py-2 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
-                Protected Preview
-              </span>
-            </div>
-
-            <div className="absolute top-4 left-4 z-20">
-              <span
-                className={`px-3 py-2 rounded-full text-[8px] font-black uppercase tracking-widest border ${photo.contentRating === 'Safe'
-                  ? 'bg-green-500/20 text-green-300 border-green-500/40'
-                  : photo.contentRating === 'Suggestive'
-                    ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-                    : 'bg-red-500/20 text-red-300 border-red-500/40'
-                  }`}
-              >
-                {photo.contentRating === 'Explicit'
-                  ? 'NSFW'
-                  : photo.contentRating}
-              </span>
-            </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-brand-gray rounded-2xl border border-white/10">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
-                <img
-                  src={`https://picsum.photos/seed/${photo.creatorId}/100/100`}
-                  alt={photo.creatorName || 'Creative Member'}
-                  className="w-full h-full object-cover"
-                  draggable={false}
-                />
-              </div>
+          <div className="p-5 bg-brand-gray rounded-2xl border border-white/10 space-y-5">
+            <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight">
+              {photo.caption}
+            </h1>
 
-              <div className="min-w-0">
-                <Link
-                  to="/profile"
-                  className="text-sm font-black uppercase hover:text-brand-accent transition-colors block truncate"
-                >
-                  {photo.creatorName || 'Creative Member'}
-                </Link>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
+              Posted {formatTimeAgo(photo.createdAt)}
+            </p>
 
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Instagram size={12} />
-
-                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">
-                    @{photo.creatorUsername || 'creative'}
-                  </span>
-                </div>
-
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-600 mt-1">
-                  {photo.creatorRole || 'Creative'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
-              aria-label="More options"
-            >
-              <MoreHorizontal size={20} />
-            </button>
-          </div>
-
-          <div className="p-5 bg-brand-gray rounded-2xl border border-white/10 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight">
-                  {photo.caption}
-                </h1>
-
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-600 mt-2">
-                  Posted {formatTimeAgo(photo.createdAt)}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={Boolean(isReporting[`photo-${photo.id}`])}
-                onClick={() => handleReportContent('photo', photo.id)}
-                className="min-h-[38px] px-3 rounded-full border border-white/10 text-gray-500 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex-shrink-0"
+            <div className="pt-4 border-t border-white/10">
+              <Link
+                to="/profile"
+                className="text-sm font-black uppercase hover:text-brand-accent transition-colors block truncate"
               >
-                {isReporting[`photo-${photo.id}`] ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    Reporting
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={13} />
-                    Report
-                  </>
-                )}
-              </button>
-            </div>
+                {photo.creatorName || 'Creative Member'}
+              </Link>
 
-            {reportMessages[`photo-${photo.id}`] && (
-              <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
-                <p className="text-[9px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                  {reportMessages[`photo-${photo.id}`]}
-                </p>
+              <div className="flex items-center gap-2 text-gray-500">
+                <Instagram size={12} />
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">
+                  @{photo.creatorUsername || 'creative'}
+                </span>
               </div>
-            )}
 
-            {photo.feedbackCategories.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {photo.feedbackCategories.map((category) => (
-                  <span
-                    key={category}
-                    className="px-3 py-2 bg-white/5 rounded-full text-[9px] font-black uppercase tracking-widest text-gray-400"
-                  >
-                    {category}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-                No specific feedback categories selected.
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-600 mt-1">
+                {photo.creatorRole || 'Creative'}
               </p>
-            )}
+            </div>
           </div>
         </div>
 
         <div className="lg:w-[420px] space-y-8">
-          <div
-            id="critique-form"
-            className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-8 space-y-6"
-          >
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 px-3 py-2 bg-brand-critique/20 border border-brand-critique/30 rounded-full w-fit">
-                <Skull size={14} className="text-brand-critique" />
-
-                <span className="text-[10px] font-black uppercase tracking-widest text-brand-critique">
-                  {photo.honestyLevel}
-                </span>
-              </div>
-
-              <h2 className="text-2xl font-black tracking-tighter uppercase">
-                Drop the Review
-              </h2>
-
-              <p className="text-xs font-medium text-gray-400 leading-relaxed">
-                The creator wants feedback on:{' '}
-                <span className="text-white uppercase font-bold">
-                  {photo.feedbackCategories.length > 0
-                    ? photo.feedbackCategories.join(', ')
-                    : 'general creative direction'}
-                </span>
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  What works?
-                </label>
-
-                <textarea
-                  rows={4}
-                  value={whatWorks}
-                  onChange={(event) => setWhatWorks(event.target.value)}
-                  className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium focus:border-brand-accent transition-all outline-none resize-none"
-                  placeholder="Be specific about the wins..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  What needs work?
-                </label>
-
-                <textarea
-                  rows={4}
-                  value={whatNeedsWork}
-                  onChange={(event) => setWhatNeedsWork(event.target.value)}
-                  className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium focus:border-brand-accent transition-all outline-none resize-none"
-                  placeholder="Be honest, but make it useful..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  Quick fix
-                </label>
-
-                <input
-                  type="text"
-                  value={quickFix}
-                  onChange={(event) => setQuickFix(event.target.value)}
-                  className="w-full min-h-[54px] bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium focus:border-brand-accent transition-all outline-none"
-                  placeholder="One thing to change right now..."
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  Portfolio ready?
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-2">
-                  {(['Yes', 'No', 'Almost'] as PortfolioReady[]).map(
-                    (value) => {
-                      if (!value) return null;
-
-                      const isSelected = portfolioReady === value;
-
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setPortfolioReady(value)}
-                          className={`min-h-[48px] py-3 text-[10px] font-black tracking-widest border rounded-2xl transition-all uppercase flex items-center justify-center gap-2 ${isSelected
-                            ? 'bg-brand-accent border-brand-accent text-brand-black'
-                            : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
-                            }`}
-                        >
-                          {value}
-                          {isSelected && <Check size={14} strokeWidth={4} />}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {submitError && (
-              <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-critique leading-relaxed">
-                  {submitError}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-4 pt-4 border-t border-white/5">
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setCritiqueType('self')}
-                  className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'self'
-                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                    : 'border-white/20 text-gray-500 hover:text-white'
-                    }`}
-                >
-                  <User size={16} />
-                  Post as me
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCritiqueType('anon')}
-                  className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'anon'
-                    ? 'bg-brand-accent border-brand-accent text-brand-black'
-                    : 'border-white/20 text-gray-500 hover:text-white'
-                    }`}
-                >
-                  <EyeOff size={16} />
-                  Anonymous
-                </button>
-              </div>
-
-              <button
-                type="button"
-                disabled={!canSubmit}
-                onClick={handleSubmitCritique}
-                className="w-full min-h-[56px] px-6 py-4 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-brand-accent transition-all disabled:opacity-20 flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin" />
-                    Saving Review
-                  </>
-                ) : (
-                  <>
-                    Drop the Review <Send size={15} />
-                  </>
-                )}
-              </button>
-
-              {!canSubmit && !isSubmitting && (
-                <p className="text-center text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
-                  Fill out all critique fields to submit.
-                </p>
-              )}
-            </div>
-          </div>
-
           <div className="space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
               <MessageSquare size={14} /> {visibleReviewCount} Reviews
             </h3>
 
-            {allCritiques.length === 0 ? (
-              <InlineEmptyState
-                icon={MessageSquare}
-                title="No Critiques Yet"
-                body="Be the first to give this creator useful feedback. Say what works, what needs work, and one quick fix they can apply."
-                action={
-                  <a
-                    href="#"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      document.getElementById('critique-form')?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                      });
-                    }}
-                    className="min-h-[40px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest inline-flex items-center justify-center gap-2 hover:bg-white transition-all"
+            {allCritiques.map((critique) => (
+              <motion.div
+                key={critique.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3"
+              >
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  {critique.whatWorks}
+                </p>
+
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {critique.whatNeedsWork}
+                </p>
+
+                {critique.quickFix && (
+                  <p className="text-sm text-gray-400 leading-relaxed">
+                    {critique.quickFix}
+                  </p>
+                )}
+
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  Do you think it’s portfolio ready?{' '}
+                  <span className="text-white">{critique.portfolioReady}</span>
+                </p>
+              </motion.div>
+            ))}
+          </div>
+
+          <div
+            id="critique-form"
+            className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-8 space-y-6"
+          >
+            <h2 className="text-2xl font-black tracking-tighter uppercase">
+              Drop the Review
+            </h2>
+
+            <textarea
+              rows={4}
+              value={whatWorks}
+              onChange={(event) => setWhatWorks(event.target.value)}
+              className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium outline-none resize-none"
+              placeholder="What works?"
+            />
+
+            <textarea
+              rows={4}
+              value={whatNeedsWork}
+              onChange={(event) => setWhatNeedsWork(event.target.value)}
+              className="w-full bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium outline-none resize-none"
+              placeholder="What needs work?"
+            />
+
+            <input
+              type="text"
+              value={quickFix}
+              onChange={(event) => setQuickFix(event.target.value)}
+              className="w-full min-h-[54px] bg-brand-black border border-white/10 rounded-2xl p-4 text-sm font-medium outline-none"
+              placeholder="Optional — what would you do differently?"
+            />
+
+            <div className="grid grid-cols-3 gap-2">
+              {(['Yes', 'No', 'Almost'] as PortfolioReady[]).map((value) => {
+                if (!value) return null;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPortfolioReady(value)}
+                    className={`min-h-[48px] rounded-2xl text-[10px] font-black uppercase ${portfolioReady === value
+                        ? 'bg-brand-accent text-brand-black'
+                        : 'border border-white/10 text-gray-400'
+                      }`}
                   >
-                    Write first critique <ArrowRight size={14} />
-                  </a>
-                }
-              />
-            ) : (
-              allCritiques.map((critique) => (
-                <motion.div
-                  key={critique.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-brand-accent/20 flex-shrink-0" />
+                    {value}
+                  </button>
+                );
+              })}
+            </div>
 
-                      <span className="text-[10px] font-black uppercase tracking-wider truncate">
-                        {critique.isAnonymous
-                          ? 'Anonymous Creative'
-                          : 'Expert Reviewer'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[9px] font-bold text-gray-600">
-                        {formatTimeAgo(critique.createdAt)}
-                      </span>
-
-                      <button
-                        type="button"
-                        disabled={Boolean(
-                          isReporting[`critique-${critique.id}`]
-                        )}
-                        onClick={() =>
-                          handleReportContent('critique', critique.id)
-                        }
-                        className="min-h-[30px] px-3 rounded-full border border-white/10 text-gray-500 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                      >
-                        {isReporting[`critique-${critique.id}`] ? (
-                          <>
-                            <Loader2 size={11} className="animate-spin" />
-                            Reporting
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle size={11} />
-                            Report
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {reportMessages[`critique-${critique.id}`] && (
-                    <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
-                      <p className="text-[8px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                        {reportMessages[`critique-${critique.id}`]}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-brand-accent uppercase leading-relaxed">
-                      Works:{' '}
-                      <span className="text-white font-medium normal-case">
-                        {critique.whatWorks}
-                      </span>
-                    </p>
-
-                    <p className="text-xs font-bold text-brand-critique uppercase leading-relaxed">
-                      Needs work:{' '}
-                      <span className="text-white font-medium normal-case">
-                        {critique.whatNeedsWork}
-                      </span>
-                    </p>
-
-                    <p className="text-xs font-bold text-gray-400 uppercase leading-relaxed">
-                      Quick fix:{' '}
-                      <span className="text-white font-medium normal-case">
-                        {critique.quickFix}
-                      </span>
-                    </p>
-
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                      Portfolio ready:{' '}
-                      <span className="text-white">
-                        {critique.portfolioReady}
-                      </span>
-                    </p>
-                  </div>
-                </motion.div>
-              ))
-            )}
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={handleSubmitCritique}
+              className="w-full min-h-[56px] bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] disabled:opacity-20 flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  Saving Review
+                </>
+              ) : (
+                <>
+                  Drop the Review <Send size={15} />
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
