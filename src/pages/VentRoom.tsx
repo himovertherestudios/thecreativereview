@@ -6,7 +6,6 @@ import {
   EyeOff,
   User,
   Send,
-  AlertTriangle,
   ThumbsUp,
   Loader2,
   AlertCircle,
@@ -14,7 +13,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { createReport } from '../lib/reports';
 
 type VentPostMode = 'self' | 'anon';
 
@@ -26,6 +24,8 @@ type LocalVent = {
   createdAt: string;
   upvotes: number;
   avatarUrl?: string | null;
+  displayName?: string | null;
+  username?: string | null;
 };
 
 type SupabaseVentRow = {
@@ -38,6 +38,8 @@ type SupabaseVentRow = {
   created_at: string;
   profiles?: {
     avatar_url: string | null;
+    display_name: string | null;
+    username: string | null;
   } | null;
 };
 
@@ -67,6 +69,8 @@ function mapSupabaseVentToLocalVent(vent: SupabaseVentRow): LocalVent {
     createdAt: vent.created_at,
     upvotes: vent.upvotes || 0,
     avatarUrl: vent.profiles?.avatar_url || null,
+    displayName: vent.profiles?.display_name || null,
+    username: vent.profiles?.username || null,
   };
 }
 
@@ -166,10 +170,6 @@ export default function VentRoom() {
   const [isUpvoting, setIsUpvoting] = useState<Record<string, boolean>>({});
   const [upvoteErrors, setUpvoteErrors] = useState<Record<string, string>>({});
 
-  const [isReporting, setIsReporting] = useState<Record<string, boolean>>({});
-  const [reportMessages, setReportMessages] = useState<Record<string, string>>(
-    {}
-  );
 
   const [comments, setComments] = useState<VentComment[]>([]);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
@@ -247,7 +247,9 @@ export default function VentRoom() {
           comment_count,
           created_at,
           profiles (
-            avatar_url
+            avatar_url,
+            display_name,
+            username
           )
         `
         )
@@ -378,9 +380,11 @@ export default function VentRoom() {
           upvotes,
           comment_count,
           created_at,
-          profiles (
-            avatar_url
-          )
+         profiles (
+  avatar_url,
+  display_name,
+  username
+)
         `
         )
         .single();
@@ -577,54 +581,7 @@ export default function VentRoom() {
     }
   };
 
-  const handleReportVent = async (ventId: string) => {
-    if (isReporting[ventId]) return;
 
-    const confirmed = window.confirm(
-      'Report this vent for review? Use this for doxxing, harassment, threats, or content that breaks the community rules.'
-    );
-
-    if (!confirmed) return;
-
-    setIsReporting((current) => ({
-      ...current,
-      [ventId]: true,
-    }));
-
-    setReportMessages((current) => ({
-      ...current,
-      [ventId]: '',
-    }));
-
-    try {
-      await createReport({
-        contentType: 'vent',
-        contentId: ventId,
-        reason: 'user_reported',
-        details: 'Reported from the main Vent Room feed.',
-      });
-
-      setReportMessages((current) => ({
-        ...current,
-        [ventId]: 'Report sent. We’ll review it.',
-      }));
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong while sending the report.';
-
-      setReportMessages((current) => ({
-        ...current,
-        [ventId]: message,
-      }));
-    } finally {
-      setIsReporting((current) => ({
-        ...current,
-        [ventId]: false,
-      }));
-    }
-  };
 
   return (
     <div className="pb-10">
@@ -634,7 +591,7 @@ export default function VentRoom() {
             <MessageSquare size={18} />
 
             <p className="text-[10px] font-black uppercase tracking-[0.3em]">
-              The Vent Room
+              The Vent Session
             </p>
           </div>
 
@@ -763,8 +720,8 @@ export default function VentRoom() {
         {ventError && !isLoadingVents && (
           <BetaEmptyState
             icon={AlertCircle}
-            eyebrow="Vent Room Error"
-            title="The Vent Room Couldn’t Load"
+            eyebrow="Vent Session Error"
+            title="The Vent Session Couldn’t Load"
             body={ventError}
             action={
               <button
@@ -858,7 +815,7 @@ export default function VentRoom() {
                             <p className="text-sm font-black uppercase tracking-tight truncate">
                               {vent.isAnonymous
                                 ? 'Anonymous Creative'
-                                : 'Creative Member'}
+                                : vent.displayName || vent.username || 'Creative'}
                             </p>
 
                             <span className="text-gray-700 text-xs">•</span>
@@ -873,32 +830,14 @@ export default function VentRoom() {
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          disabled={Boolean(isReporting[vent.id])}
-                          onClick={() => handleReportVent(vent.id)}
-                          className="min-h-[32px] px-3 rounded-full border border-white/10 text-gray-600 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                        >
-                          {isReporting[vent.id] ? (
-                            <Loader2 size={11} className="animate-spin" />
-                          ) : (
-                            <AlertTriangle size={11} />
-                          )}
-                          Report
-                        </button>
+
                       </div>
 
                       <p className="text-[15px] md:text-base text-gray-100 font-medium leading-relaxed whitespace-pre-wrap">
                         {vent.content}
                       </p>
 
-                      {reportMessages[vent.id] && (
-                        <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
-                          <p className="text-[9px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
-                            {reportMessages[vent.id]}
-                          </p>
-                        </div>
-                      )}
+
 
                       {upvoteErrors[vent.id] && (
                         <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">

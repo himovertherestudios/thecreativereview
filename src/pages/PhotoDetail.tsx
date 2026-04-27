@@ -22,6 +22,7 @@ import {
 import { ContentRating, Critique, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
 import { createReport } from '../lib/reports';
+import { trackEvent } from '../lib/analytics';
 
 type CritiqueType = 'self' | 'anon';
 type PortfolioReady = 'Yes' | 'No' | 'Almost' | '';
@@ -373,6 +374,12 @@ export default function PhotoDetail() {
       } as SupabasePhotoRow);
 
       setRealPhoto(mappedPhoto);
+      await trackEvent('photo_viewed', 'PhotoDetail', {
+        photo_id: mappedPhoto.id,
+        creator_id: mappedPhoto.creatorId,
+        content_rating: mappedPhoto.contentRating,
+        review_count: mappedPhoto.reviewCount,
+      });
 
       const { data: critiqueData, error: critiqueError } = await supabase
         .from('critiques')
@@ -568,6 +575,14 @@ export default function PhotoDetail() {
           review_count: nextReviewCount,
         })
         .eq('id', photo.id);
+
+      await trackEvent('critique_submitted', 'PhotoDetail', {
+        photo_id: photo.id,
+        critique_id: newCritique.id,
+        creator_id: photo.creatorId,
+        is_anonymous: critiqueType === 'anon',
+        portfolio_ready: portfolioReady || 'Almost',
+      });
 
       resetCritiqueForm();
     } catch (error) {
