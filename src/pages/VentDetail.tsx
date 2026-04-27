@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -9,14 +9,12 @@ import {
     AlertTriangle,
     ThumbsUp,
     MessageSquare,
-    AtSign,
     Reply,
     Loader2,
     AlertCircle,
-    Sparkles,
 } from 'lucide-react';
-import { FAKE_CREATORS, FAKE_VENTS } from '../data';
 import { supabase } from '../lib/supabase';
+import { createReport } from '../lib/reports';
 
 type VentPostMode = 'self' | 'anon';
 
@@ -56,15 +54,6 @@ type SupabaseVentRow = {
     created_at: string;
 };
 
-type SupabaseVentReplyRow = {
-    id: string;
-    comment_id: string;
-    user_id: string | null;
-    content: string;
-    is_anonymous: boolean;
-    created_at: string;
-};
-
 type SupabaseVentCommentRow = {
     id: string;
     vent_id: string;
@@ -74,65 +63,14 @@ type SupabaseVentCommentRow = {
     created_at: string;
 };
 
-const STARTER_COMMENTS: VentComment[] = [
-    {
-        id: 'vc1',
-        ventId: 'v1',
-        content:
-            'That “I’ll know it when I see it” line needs to come with a consultation fee. @arivers_clicks called this last week.',
-        isAnonymous: false,
-        createdAt: '2024-03-22T10:00:00Z',
-    },
-    {
-        id: 'vc1b',
-        ventId: 'v1',
-        content:
-            'Moodboards are not decorations. They are the map. Follow the map.',
-        isAnonymous: true,
-        createdAt: '2024-03-22T10:05:00Z',
-    },
-    {
-        id: 'vc1c',
-        ventId: 'v1',
-        content:
-            'This is why I started charging for pre-production calls. The confusion has a price now.',
-        isAnonymous: false,
-        createdAt: '2024-03-22T10:10:00Z',
-    },
-    {
-        id: 'vc2',
-        ventId: 'v2',
-        content:
-            'Credits cost zero dollars. @mayavossmua said it best — tag the team.',
-        isAnonymous: true,
-        createdAt: '2024-03-22T12:00:00Z',
-    },
-    {
-        id: 'vc2b',
-        ventId: 'v2',
-        content:
-            'The makeup artist, stylist, assistant, and model all helped make the image work. Tag the people.',
-        isAnonymous: false,
-        createdAt: '2024-03-22T12:05:00Z',
-    },
-];
-
-const STARTER_REPLIES: CommentReply[] = [
-    {
-        id: 'reply-1',
-        commentId: 'vc1',
-        content: 'Exactly. The confusion has to stop being free labor.',
-        isAnonymous: true,
-        createdAt: '2024-03-22T10:15:00Z',
-    },
-    {
-        id: 'reply-2',
-        commentId: 'vc2',
-        content: '@mayavossmua would definitely say tag the whole team.',
-        isAnonymous: false,
-        createdAt: '2024-03-22T12:10:00Z',
-    },
-];
+type SupabaseVentReplyRow = {
+    id: string;
+    comment_id: string;
+    user_id: string | null;
+    content: string;
+    is_anonymous: boolean;
+    created_at: string;
+};
 
 function mapSupabaseVentToVent(vent: SupabaseVentRow): Vent {
     return {
@@ -158,7 +96,9 @@ function mapSupabaseCommentToVentComment(
     };
 }
 
-function mapSupabaseReplyToCommentReply(reply: SupabaseVentReplyRow): CommentReply {
+function mapSupabaseReplyToCommentReply(
+    reply: SupabaseVentReplyRow
+): CommentReply {
     return {
         id: reply.id,
         commentId: reply.comment_id,
@@ -191,11 +131,6 @@ function formatTimeAgo(dateString: string) {
     return date.toLocaleDateString();
 }
 
-function getMentionQuery(text: string) {
-    const match = text.match(/@([a-zA-Z0-9_]*)$/);
-    return match ? match[1].toLowerCase() : null;
-}
-
 function renderTextWithMentions(text: string) {
     const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
 
@@ -224,30 +159,52 @@ function IdentityAvatar({ isAnonymous }: { isAnonymous: boolean }) {
     );
 }
 
+function BetaEmptyState({
+    icon: Icon,
+    eyebrow = 'Beta Empty State',
+    title,
+    body,
+    action,
+}: {
+    icon: React.ElementType;
+    eyebrow?: string;
+    title: string;
+    body: string;
+    action?: React.ReactNode;
+}) {
+    return (
+        <div className="min-h-[280px] rounded-3xl border border-white/10 bg-white/[0.03] p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="absolute -top-20 -right-20 w-44 h-44 rounded-full bg-brand-accent/10 blur-3xl" />
+            <div className="absolute -bottom-20 -left-20 w-44 h-44 rounded-full bg-brand-critique/10 blur-3xl" />
+
+            <div className="relative z-10 w-14 h-14 rounded-2xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-5">
+                <Icon size={26} className="text-brand-accent" />
+            </div>
+
+            <p className="relative z-10 text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-3">
+                {eyebrow}
+            </p>
+
+            <h2 className="relative z-10 text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-4 max-w-lg">
+                {title}
+            </h2>
+
+            <p className="relative z-10 text-sm text-gray-400 leading-relaxed max-w-md">
+                {body}
+            </p>
+
+            {action && <div className="relative z-10 mt-6">{action}</div>}
+        </div>
+    );
+}
+
 export default function VentDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const fallbackVent = useMemo(() => {
-        const foundVent = FAKE_VENTS.find((item) => item.id === id) || FAKE_VENTS[0];
-
-        return {
-            id: foundVent.id,
-            userId: foundVent.userId,
-            content: foundVent.content,
-            isAnonymous: foundVent.isAnonymous,
-            createdAt: foundVent.createdAt,
-            upvotes: foundVent.upvotes,
-            commentCount: 0,
-        };
-    }, [id]);
-
-    const [realVent, setRealVent] = useState<Vent | null>(null);
+    const [vent, setVent] = useState<Vent | null>(null);
     const [isLoadingVent, setIsLoadingVent] = useState(true);
     const [pageError, setPageError] = useState('');
-
-    const vent = realVent || fallbackVent;
-    const isRealSupabaseVent = Boolean(realVent);
 
     const [commentText, setCommentText] = useState('');
     const [commentMode, setCommentMode] = useState<VentPostMode>('anon');
@@ -264,45 +221,34 @@ export default function VentDetail() {
     );
     const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
     const [replyModes, setReplyModes] = useState<Record<string, VentPostMode>>({});
-    const [replies, setReplies] = useState<CommentReply[]>(STARTER_REPLIES);
+    const [replies, setReplies] = useState<CommentReply[]>([]);
     const [isPostingReply, setIsPostingReply] = useState<Record<string, boolean>>(
         {}
     );
     const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
 
-    const mentionQuery = getMentionQuery(commentText);
+    const [isReporting, setIsReporting] = useState<Record<string, boolean>>({});
+    const [reportMessages, setReportMessages] = useState<Record<string, string>>(
+        {}
+    );
 
-    const mentionSuggestions = useMemo(() => {
-        if (mentionQuery === null) return [];
-
-        return FAKE_CREATORS.filter((creator) =>
-            creator.username.toLowerCase().includes(mentionQuery)
-        ).slice(0, 4);
-    }, [mentionQuery]);
-
-    const activeReplyText = activeReplyCommentId
-        ? replyDrafts[activeReplyCommentId] || ''
-        : '';
-
-    const replyMentionQuery = getMentionQuery(activeReplyText);
-
-    const replyMentionSuggestions = useMemo(() => {
-        if (replyMentionQuery === null) return [];
-
-        return FAKE_CREATORS.filter((creator) =>
-            creator.username.toLowerCase().includes(replyMentionQuery)
-        ).slice(0, 4);
-    }, [replyMentionQuery]);
-
-    const canComment = commentText.trim().length >= 2 && !isPostingComment;
-    const upvoteCount = vent.upvotes;
+    const canComment = Boolean(vent) && commentText.trim().length >= 2 && !isPostingComment;
+    const upvoteCount = vent?.upvotes || 0;
 
     const loadVentThread = async () => {
-        if (!id) return;
+        if (!id) {
+            setPageError('This vent link is missing an ID.');
+            setIsLoadingVent(false);
+            return;
+        }
 
         setIsLoadingVent(true);
         setPageError('');
         setCommentError('');
+        setUpvoteError('');
+        setVent(null);
+        setComments([]);
+        setReplies([]);
 
         try {
             const { data: ventData, error: ventError } = await supabase
@@ -319,16 +265,14 @@ export default function VentDetail() {
         `
                 )
                 .eq('id', id)
+                .eq('is_hidden', false)
                 .maybeSingle();
 
-            if (ventError) {
-                throw ventError;
-            }
+            if (ventError) throw ventError;
 
             if (!ventData) {
-                setRealVent(null);
-                setComments(STARTER_COMMENTS.filter((comment) => comment.ventId === id));
-                setReplies(STARTER_REPLIES);
+                setVent(null);
+                setPageError('This vent thread is no longer available.');
                 return;
             }
 
@@ -336,11 +280,14 @@ export default function VentDetail() {
                 ventData as unknown as SupabaseVentRow
             );
 
-            setRealVent(mappedVent);
+            setVent(mappedVent);
 
             const {
                 data: { user },
+                error: userError,
             } = await supabase.auth.getUser();
+
+            if (userError) throw userError;
 
             if (user) {
                 const { data: existingUpvote, error: upvoteLookupError } = await supabase
@@ -350,9 +297,7 @@ export default function VentDetail() {
                     .eq('user_id', user.id)
                     .maybeSingle();
 
-                if (upvoteLookupError) {
-                    throw upvoteLookupError;
-                }
+                if (upvoteLookupError) throw upvoteLookupError;
 
                 setHasUpvoted(Boolean(existingUpvote));
             } else {
@@ -374,9 +319,7 @@ export default function VentDetail() {
                 .eq('vent_id', id)
                 .order('created_at', { ascending: false });
 
-            if (commentsError) {
-                throw commentsError;
-            }
+            if (commentsError) throw commentsError;
 
             const mappedComments = (commentData || []).map((comment) =>
                 mapSupabaseCommentToVentComment(
@@ -408,9 +351,7 @@ export default function VentDetail() {
                 .in('comment_id', commentIds)
                 .order('created_at', { ascending: true });
 
-            if (repliesError) {
-                throw repliesError;
-            }
+            if (repliesError) throw repliesError;
 
             const mappedReplies = (replyData || []).map((reply) =>
                 mapSupabaseReplyToCommentReply(
@@ -426,10 +367,9 @@ export default function VentDetail() {
                     : 'Something went wrong loading this vent thread.';
 
             setPageError(message);
-
-            setRealVent(null);
-            setComments(STARTER_COMMENTS.filter((comment) => comment.ventId === id));
-            setReplies(STARTER_REPLIES);
+            setVent(null);
+            setComments([]);
+            setReplies([]);
         } finally {
             setIsLoadingVent(false);
         }
@@ -447,52 +387,19 @@ export default function VentDetail() {
         }
     };
 
-    const insertMention = (username: string) => {
-        setCommentText((current) =>
-            current.replace(/@([a-zA-Z0-9_]*)$/, `@${username} `)
-        );
-    };
-
-    const insertReplyMention = (commentId: string, username: string) => {
-        setReplyDrafts((current) => ({
-            ...current,
-            [commentId]: (current[commentId] || '').replace(
-                /@([a-zA-Z0-9_]*)$/,
-                `@${username} `
-            ),
-        }));
-    };
-
     const handlePostComment = async () => {
-        if (!canComment) return;
+        if (!canComment || !vent) return;
 
         setIsPostingComment(true);
         setCommentError('');
 
         try {
-            if (!isRealSupabaseVent) {
-                const newComment: VentComment = {
-                    id: `comment-${Date.now()}`,
-                    ventId: vent.id,
-                    content: commentText.trim(),
-                    isAnonymous: commentMode === 'anon',
-                    createdAt: new Date().toISOString(),
-                };
-
-                setComments((current) => [newComment, ...current]);
-                setCommentText('');
-                setCommentMode('anon');
-                return;
-            }
-
             const {
                 data: { user },
                 error: userError,
             } = await supabase.auth.getUser();
 
-            if (userError) {
-                throw userError;
-            }
+            if (userError) throw userError;
 
             if (!user) {
                 throw new Error('You must be logged in to comment.');
@@ -518,9 +425,7 @@ export default function VentDetail() {
                 )
                 .single();
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
 
             const newComment = mapSupabaseCommentToVentComment(
                 data as unknown as SupabaseVentCommentRow
@@ -582,35 +487,12 @@ export default function VentDetail() {
         }));
 
         try {
-            if (!isRealSupabaseVent) {
-                const newReply: CommentReply = {
-                    id: `reply-${commentId}-${Date.now()}`,
-                    commentId,
-                    content: draft.trim(),
-                    isAnonymous: getReplyMode(commentId) === 'anon',
-                    createdAt: new Date().toISOString(),
-                };
-
-                setReplies((current) => [newReply, ...current]);
-
-                setReplyDrafts((current) => ({
-                    ...current,
-                    [commentId]: '',
-                }));
-
-                setReplyModeForComment(commentId, 'anon');
-                setActiveReplyCommentId(null);
-                return;
-            }
-
             const {
                 data: { user },
                 error: userError,
             } = await supabase.auth.getUser();
 
-            if (userError) {
-                throw userError;
-            }
+            if (userError) throw userError;
 
             if (!user) {
                 throw new Error('You must be logged in to reply.');
@@ -636,9 +518,7 @@ export default function VentDetail() {
                 )
                 .single();
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
 
             const newReply = mapSupabaseReplyToCommentReply(
                 data as unknown as SupabaseVentReplyRow
@@ -672,31 +552,27 @@ export default function VentDetail() {
     };
 
     const handleToggleUpvote = async () => {
-        if (isUpvoting) return;
+        if (isUpvoting || !vent) return;
 
         setIsUpvoting(true);
         setUpvoteError('');
 
         try {
-            if (!isRealSupabaseVent) {
-                setHasUpvoted((current) => !current);
-                return;
-            }
-
             const {
                 data: { user },
                 error: userError,
             } = await supabase.auth.getUser();
 
-            if (userError) {
-                throw userError;
-            }
+            if (userError) throw userError;
 
             if (!user) {
                 throw new Error('You must be logged in to upvote.');
             }
 
-            const currentUpvotes = realVent?.upvotes ?? vent.upvotes ?? 0;
+            const currentUpvotes = vent.upvotes || 0;
+            const nextUpvoteCount = hasUpvoted
+                ? Math.max(0, currentUpvotes - 1)
+                : currentUpvotes + 1;
 
             if (hasUpvoted) {
                 const { error: deleteError } = await supabase
@@ -705,40 +581,7 @@ export default function VentDetail() {
                     .eq('vent_id', vent.id)
                     .eq('user_id', user.id);
 
-                if (deleteError) {
-                    throw deleteError;
-                }
-
-                const nextUpvoteCount = Math.max(0, currentUpvotes - 1);
-
-                const { data: updatedVent, error: updateError } = await supabase
-                    .from('vents')
-                    .update({
-                        upvotes: nextUpvoteCount,
-                    })
-                    .eq('id', vent.id)
-                    .select(
-                        `
-            id,
-            user_id,
-            content,
-            is_anonymous,
-            upvotes,
-            comment_count,
-            created_at
-            `
-                    )
-                    .single();
-
-                if (updateError) {
-                    throw updateError;
-                }
-
-                setHasUpvoted(false);
-
-                setRealVent(
-                    mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow)
-                );
+                if (deleteError) throw deleteError;
             } else {
                 const { error: insertError } = await supabase
                     .from('vent_upvotes')
@@ -747,41 +590,32 @@ export default function VentDetail() {
                         user_id: user.id,
                     });
 
-                if (insertError) {
-                    throw insertError;
-                }
-
-                const nextUpvoteCount = currentUpvotes + 1;
-
-                const { data: updatedVent, error: updateError } = await supabase
-                    .from('vents')
-                    .update({
-                        upvotes: nextUpvoteCount,
-                    })
-                    .eq('id', vent.id)
-                    .select(
-                        `
-            id,
-            user_id,
-            content,
-            is_anonymous,
-            upvotes,
-            comment_count,
-            created_at
-            `
-                    )
-                    .single();
-
-                if (updateError) {
-                    throw updateError;
-                }
-
-                setHasUpvoted(true);
-
-                setRealVent(
-                    mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow)
-                );
+                if (insertError) throw insertError;
             }
+
+            const { data: updatedVent, error: updateError } = await supabase
+                .from('vents')
+                .update({
+                    upvotes: nextUpvoteCount,
+                })
+                .eq('id', vent.id)
+                .select(
+                    `
+          id,
+          user_id,
+          content,
+          is_anonymous,
+          upvotes,
+          comment_count,
+          created_at
+          `
+                )
+                .single();
+
+            if (updateError) throw updateError;
+
+            setHasUpvoted(!hasUpvoted);
+            setVent(mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow));
         } catch (error) {
             const message =
                 error instanceof Error
@@ -791,6 +625,60 @@ export default function VentDetail() {
             setUpvoteError(message);
         } finally {
             setIsUpvoting(false);
+        }
+    };
+
+    const handleReportContent = async (
+        contentType: 'vent' | 'vent_comment' | 'vent_reply',
+        contentId: string
+    ) => {
+        const reportKey = `${contentType}-${contentId}`;
+
+        if (isReporting[reportKey]) return;
+
+        const confirmed = window.confirm(
+            'Report this content for review? Use this for doxxing, harassment, threats, or content that breaks the community rules.'
+        );
+
+        if (!confirmed) return;
+
+        setIsReporting((current) => ({
+            ...current,
+            [reportKey]: true,
+        }));
+
+        setReportMessages((current) => ({
+            ...current,
+            [reportKey]: '',
+        }));
+
+        try {
+            await createReport({
+                contentType,
+                contentId,
+                reason: 'user_reported',
+                details: 'Reported from the Vent Detail thread page.',
+            });
+
+            setReportMessages((current) => ({
+                ...current,
+                [reportKey]: 'Report sent. We’ll review it.',
+            }));
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Something went wrong while sending the report.';
+
+            setReportMessages((current) => ({
+                ...current,
+                [reportKey]: message,
+            }));
+        } finally {
+            setIsReporting((current) => ({
+                ...current,
+                [reportKey]: false,
+            }));
         }
     };
 
@@ -808,6 +696,41 @@ export default function VentDetail() {
         );
     }
 
+    if (!vent) {
+        return (
+            <div className="pb-10">
+                <div className="max-w-2xl mx-auto space-y-5">
+                    <button
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
+                    >
+                        <ChevronLeft size={18} /> Back to vents
+                    </button>
+
+                    <BetaEmptyState
+                        icon={AlertCircle}
+                        eyebrow="Thread Unavailable"
+                        title="This Vent Thread Is Not Available"
+                        body={
+                            pageError ||
+                            'This vent may have been deleted, hidden by moderation, or the link may be outdated.'
+                        }
+                        action={
+                            <button
+                                type="button"
+                                onClick={loadVentThread}
+                                className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+                            >
+                                Try Again
+                            </button>
+                        }
+                    />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="pb-10">
             <div className="max-w-2xl mx-auto space-y-5">
@@ -819,20 +742,6 @@ export default function VentDetail() {
                     <ChevronLeft size={18} /> Back to vents
                 </button>
 
-                {pageError && (
-                    <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl flex items-start gap-3">
-                        <AlertCircle
-                            size={18}
-                            className="text-brand-critique flex-shrink-0 mt-0.5"
-                        />
-
-                        <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
-                            Thread error: {pageError}. Showing fallback thread.
-                        </p>
-                    </div>
-                )}
-
-                {/* Main Thread */}
                 <section className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
                     <div className="p-4 md:p-5">
                         <div className="flex gap-3">
@@ -898,6 +807,14 @@ export default function VentDetail() {
                                     </div>
                                 )}
 
+                                {reportMessages[`vent-${vent.id}`] && (
+                                    <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
+                                        <p className="text-[9px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
+                                            {reportMessages[`vent-${vent.id}`]}
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <button
                                         type="button"
@@ -908,24 +825,35 @@ export default function VentDetail() {
                                                 : 'border-white/10 text-gray-500 hover:text-white hover:border-white/20'
                                             }`}
                                     >
-                                        {isUpvoting ? (
-                                            <Loader2 size={14} className="animate-spin" />
-                                        ) : (
-                                            <ThumbsUp size={14} />
-                                        )}
+                                        <ThumbsUp size={14} />
                                         Upvote
                                     </button>
 
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            const textarea = document.getElementById('thread-comment-box');
+                                            const textarea =
+                                                document.getElementById('thread-comment-box');
                                             textarea?.focus();
                                         }}
                                         className="min-h-[36px] px-3 rounded-full border border-white/10 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-brand-accent hover:border-brand-accent/30 transition-all"
                                     >
                                         <MessageSquare size={14} />
                                         Comment
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={Boolean(isReporting[`vent-${vent.id}`])}
+                                        onClick={() => handleReportContent('vent', vent.id)}
+                                        className="min-h-[36px] px-3 rounded-full border border-white/10 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-brand-critique hover:border-brand-critique transition-all disabled:opacity-50"
+                                    >
+                                        {isReporting[`vent-${vent.id}`] ? (
+                                            <Loader2 size={13} className="animate-spin" />
+                                        ) : (
+                                            <AlertTriangle size={13} />
+                                        )}
+                                        Report
                                     </button>
                                 </div>
 
@@ -945,7 +873,6 @@ export default function VentDetail() {
                     </div>
                 </section>
 
-                {/* Comment Composer */}
                 <section className="bg-brand-gray border border-white/10 rounded-3xl p-4 md:p-5">
                     <div className="flex gap-3">
                         <div className="w-10 h-10 rounded-full border border-brand-accent/30 overflow-hidden flex-shrink-0">
@@ -961,56 +888,14 @@ export default function VentDetail() {
                                 </p>
                             </div>
 
-                            <div className="relative space-y-3">
-                                <textarea
-                                    id="thread-comment-box"
-                                    value={commentText}
-                                    onChange={(event) => handleCommentChange(event.target.value)}
-                                    rows={4}
-                                    placeholder="Add a comment, joke, cosign, or useful perspective..."
-                                    className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
-                                />
-
-                                {mentionSuggestions.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                                        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                                            <AtSign size={14} className="text-brand-accent" />
-
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                                Tag a member
-                                            </p>
-                                        </div>
-
-                                        <div className="p-2 space-y-1">
-                                            {mentionSuggestions.map((creator) => (
-                                                <button
-                                                    key={creator.id}
-                                                    type="button"
-                                                    onClick={() => insertMention(creator.username)}
-                                                    className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
-                                                >
-                                                    <img
-                                                        src={creator.avatarUrl}
-                                                        alt={creator.displayName}
-                                                        className="w-9 h-9 rounded-full object-cover"
-                                                        draggable={false}
-                                                    />
-
-                                                    <div className="min-w-0">
-                                                        <p className="text-xs font-black uppercase tracking-widest truncate">
-                                                            {creator.displayName}
-                                                        </p>
-
-                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
-                                                            @{creator.username}
-                                                        </p>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            <textarea
+                                id="thread-comment-box"
+                                value={commentText}
+                                onChange={(event) => handleCommentChange(event.target.value)}
+                                rows={4}
+                                placeholder="Add a comment, joke, cosign, or useful perspective..."
+                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
+                            />
 
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-white/10">
                                 <div className="grid grid-cols-2 gap-2 sm:flex">
@@ -1065,20 +950,14 @@ export default function VentDetail() {
                                     </p>
                                 </div>
                             )}
-
-                            <p className="text-[9px] text-gray-700 font-black uppercase tracking-widest">
-                                Tip: type @ to mention a member. Prototype mentions use fake
-                                members for now.
-                            </p>
                         </div>
                     </div>
                 </section>
 
-                {/* Comments */}
                 <section className="space-y-3">
                     <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2 text-gray-600">
-                            <Sparkles size={14} />
+                            <MessageSquare size={14} />
 
                             <p className="text-[10px] font-black uppercase tracking-widest">
                                 {comments.length} comments
@@ -1091,11 +970,26 @@ export default function VentDetail() {
                     </div>
 
                     {comments.length === 0 ? (
-                        <div className="bg-brand-gray border border-white/10 rounded-3xl p-6 text-center">
-                            <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">
-                                No comments yet. Start the chaos.
-                            </p>
-                        </div>
+                        <BetaEmptyState
+                            icon={MessageSquare}
+                            eyebrow="No Comments Yet"
+                            title="Start The Conversation"
+                            body="Be the first to add a useful thought, cosign, joke, or creative perspective to this thread."
+                            action={
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const textarea =
+                                            document.getElementById('thread-comment-box');
+                                        textarea?.focus();
+                                    }}
+                                    className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+                                >
+                                    Add First Comment
+                                    <Send size={14} />
+                                </button>
+                            }
+                        />
                     ) : (
                         <div className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
                             {comments.map((comment, index) => {
@@ -1106,8 +1000,7 @@ export default function VentDetail() {
                                 const replyText = replyDrafts[comment.id] || '';
                                 const replyMode = getReplyMode(comment.id);
                                 const isThisReplyPosting = Boolean(isPostingReply[comment.id]);
-                                const canReply =
-                                    replyText.trim().length >= 2 && !isThisReplyPosting;
+                                const canReply = replyText.trim().length >= 2 && !isThisReplyPosting;
 
                                 return (
                                     <motion.article
@@ -1131,23 +1024,51 @@ export default function VentDetail() {
                                             </div>
 
                                             <div className="flex-1 min-w-0 space-y-3">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <p className="text-xs font-black uppercase tracking-tight">
-                                                        {comment.isAnonymous
-                                                            ? 'Anonymous Creative'
-                                                            : 'Creative Member'}
-                                                    </p>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                                        <p className="text-xs font-black uppercase tracking-tight">
+                                                            {comment.isAnonymous
+                                                                ? 'Anonymous Creative'
+                                                                : 'Creative Member'}
+                                                        </p>
 
-                                                    <span className="text-gray-700 text-xs">•</span>
+                                                        <span className="text-gray-700 text-xs">•</span>
 
-                                                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
-                                                        {formatTimeAgo(comment.createdAt)}
-                                                    </p>
+                                                        <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                                                            {formatTimeAgo(comment.createdAt)}
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        disabled={Boolean(
+                                                            isReporting[`vent_comment-${comment.id}`]
+                                                        )}
+                                                        onClick={() =>
+                                                            handleReportContent('vent_comment', comment.id)
+                                                        }
+                                                        className="min-h-[30px] px-3 rounded-full border border-white/10 text-gray-600 hover:text-brand-critique hover:border-brand-critique flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                                                    >
+                                                        {isReporting[`vent_comment-${comment.id}`] ? (
+                                                            <Loader2 size={11} className="animate-spin" />
+                                                        ) : (
+                                                            <AlertTriangle size={11} />
+                                                        )}
+                                                        Report
+                                                    </button>
                                                 </div>
 
                                                 <p className="text-sm md:text-base text-gray-300 leading-relaxed whitespace-pre-wrap">
                                                     {renderTextWithMentions(comment.content)}
                                                 </p>
+
+                                                {reportMessages[`vent_comment-${comment.id}`] && (
+                                                    <div className="p-3 bg-brand-black/60 border border-white/10 rounded-2xl">
+                                                        <p className="text-[8px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
+                                                            {reportMessages[`vent_comment-${comment.id}`]}
+                                                        </p>
+                                                    </div>
+                                                )}
 
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <button
@@ -1178,32 +1099,72 @@ export default function VentDetail() {
                                                                 key={replyItem.id}
                                                                 className="bg-brand-black/50 border border-white/5 rounded-2xl p-3 space-y-2"
                                                             >
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-6 h-6 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
-                                                                        {replyItem.isAnonymous ? (
-                                                                            <EyeOff
-                                                                                size={12}
-                                                                                className="text-brand-accent"
-                                                                            />
-                                                                        ) : (
-                                                                            <User
-                                                                                size={12}
-                                                                                className="text-brand-accent"
-                                                                            />
-                                                                        )}
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <div className="w-6 h-6 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
+                                                                            {replyItem.isAnonymous ? (
+                                                                                <EyeOff
+                                                                                    size={12}
+                                                                                    className="text-brand-accent"
+                                                                                />
+                                                                            ) : (
+                                                                                <User
+                                                                                    size={12}
+                                                                                    className="text-brand-accent"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+
+                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">
+                                                                            {replyItem.isAnonymous
+                                                                                ? 'Anonymous Creative'
+                                                                                : 'Creative Member'}{' '}
+                                                                            • {formatTimeAgo(replyItem.createdAt)}
+                                                                        </p>
                                                                     </div>
 
-                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                                                        {replyItem.isAnonymous
-                                                                            ? 'Anonymous Creative'
-                                                                            : 'Creative Member'}{' '}
-                                                                        • {formatTimeAgo(replyItem.createdAt)}
-                                                                    </p>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={Boolean(
+                                                                            isReporting[`vent_reply-${replyItem.id}`]
+                                                                        )}
+                                                                        onClick={() =>
+                                                                            handleReportContent(
+                                                                                'vent_reply',
+                                                                                replyItem.id
+                                                                            )
+                                                                        }
+                                                                        className="min-h-[28px] px-2 rounded-full border border-white/10 text-gray-600 hover:text-brand-critique hover:border-brand-critique flex items-center gap-1 text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                                                                    >
+                                                                        {isReporting[
+                                                                            `vent_reply-${replyItem.id}`
+                                                                        ] ? (
+                                                                            <Loader2
+                                                                                size={10}
+                                                                                className="animate-spin"
+                                                                            />
+                                                                        ) : (
+                                                                            <AlertTriangle size={10} />
+                                                                        )}
+                                                                        Report
+                                                                    </button>
                                                                 </div>
 
                                                                 <p className="text-xs md:text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
                                                                     {renderTextWithMentions(replyItem.content)}
                                                                 </p>
+
+                                                                {reportMessages[`vent_reply-${replyItem.id}`] && (
+                                                                    <div className="p-2 bg-brand-black/60 border border-white/10 rounded-xl">
+                                                                        <p className="text-[8px] uppercase font-black tracking-widest text-gray-400 leading-relaxed">
+                                                                            {
+                                                                                reportMessages[
+                                                                                `vent_reply-${replyItem.id}`
+                                                                                ]
+                                                                            }
+                                                                        </p>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1211,66 +1172,15 @@ export default function VentDetail() {
 
                                                 {isReplyOpen && (
                                                     <div className="bg-brand-black/50 border border-white/10 rounded-3xl p-4 space-y-3">
-                                                        <div className="relative">
-                                                            <textarea
-                                                                value={replyText}
-                                                                onChange={(event) =>
-                                                                    handleReplyChange(comment.id, event.target.value)
-                                                                }
-                                                                rows={3}
-                                                                placeholder="Reply to this comment..."
-                                                                className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
-                                                            />
-
-                                                            {activeReplyCommentId === comment.id &&
-                                                                replyMentionSuggestions.length > 0 && (
-                                                                    <div className="absolute left-0 right-0 top-full z-30 mt-2 bg-brand-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                                                                        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                                                                            <AtSign
-                                                                                size={14}
-                                                                                className="text-brand-accent"
-                                                                            />
-
-                                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                                                                Tag a member
-                                                                            </p>
-                                                                        </div>
-
-                                                                        <div className="p-2 space-y-1">
-                                                                            {replyMentionSuggestions.map((creator) => (
-                                                                                <button
-                                                                                    key={creator.id}
-                                                                                    type="button"
-                                                                                    onClick={() =>
-                                                                                        insertReplyMention(
-                                                                                            comment.id,
-                                                                                            creator.username
-                                                                                        )
-                                                                                    }
-                                                                                    className="w-full min-h-[54px] px-3 rounded-xl flex items-center gap-3 text-left hover:bg-white/5 transition-all"
-                                                                                >
-                                                                                    <img
-                                                                                        src={creator.avatarUrl}
-                                                                                        alt={creator.displayName}
-                                                                                        className="w-9 h-9 rounded-full object-cover"
-                                                                                        draggable={false}
-                                                                                    />
-
-                                                                                    <div className="min-w-0">
-                                                                                        <p className="text-xs font-black uppercase tracking-widest truncate">
-                                                                                            {creator.displayName}
-                                                                                        </p>
-
-                                                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent truncate">
-                                                                                            @{creator.username}
-                                                                                        </p>
-                                                                                    </div>
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                        </div>
+                                                        <textarea
+                                                            value={replyText}
+                                                            onChange={(event) =>
+                                                                handleReplyChange(comment.id, event.target.value)
+                                                            }
+                                                            rows={3}
+                                                            placeholder="Reply to this comment..."
+                                                            className="w-full bg-transparent border-none p-0 text-sm font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
+                                                        />
 
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <button

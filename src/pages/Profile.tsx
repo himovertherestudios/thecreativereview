@@ -4,10 +4,6 @@ import {
   Instagram,
   MapPin,
   Briefcase,
-  Award,
-  Star,
-  Settings,
-  ShieldCheck,
   Grid,
   History,
   ArrowRight,
@@ -16,9 +12,12 @@ import {
   Globe,
   Loader2,
   Upload,
+  Save,
+  X,
+  ImageOff,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { FAKE_USER, RECENT_REVIEWS } from '../data';
+import { FAKE_USER } from '../data';
 import { supabase } from '../lib/supabase';
 
 type ProfileTab = 'frames' | 'critiques';
@@ -35,8 +34,35 @@ type UserProfile = {
   avatar_url: string | null;
 };
 
-function getRatingLabel(contentRating: string) {
+type ProfilePhoto = {
+  id: string;
+  image_url: string;
+  watermarked_url: string | null;
+  caption: string | null;
+  content_rating: string | null;
+  review_count: number | null;
+  created_at: string;
+};
+
+type ProfileStats = {
+  framesUploaded: number;
+  reviewsReceived: number;
+  reviewsGiven: number;
+};
+
+type EditProfileForm = {
+  display_name: string;
+  username: string;
+  instagram_handle: string;
+  role: string;
+  city: string;
+  bio: string;
+  website: string;
+};
+
+function getRatingLabel(contentRating: string | null) {
   if (contentRating === 'Explicit') return 'NSFW';
+  if (!contentRating) return 'Safe';
   return contentRating;
 }
 
@@ -44,12 +70,26 @@ function getFallbackAvatar(seed: string | null | undefined) {
   return `https://picsum.photos/seed/${seed || 'creative-review-user'}/200/200`;
 }
 
+function getFallbackPhoto(seed: string | null | undefined) {
+  return `https://picsum.photos/seed/${seed || 'creative-review-photo'}/800/1000`;
+}
+
 function addCacheBuster(url: string) {
   if (!url) return url;
-
   const separator = url.includes('?') ? '&' : '?';
-
   return `${url}${separator}v=${Date.now()}`;
+}
+
+function normalizeWebsite(url: string) {
+  const cleanUrl = url.trim();
+
+  if (!cleanUrl) return '';
+
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+    return cleanUrl;
+  }
+
+  return `https://${cleanUrl}`;
 }
 
 export default function Profile() {
@@ -57,37 +97,77 @@ export default function Profile() {
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('frames');
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profilePhotos, setProfilePhotos] = useState<ProfilePhoto[]>([]);
+  const [stats, setStats] = useState<ProfileStats>({
+    framesUploaded: 0,
+    reviewsReceived: 0,
+    reviewsGiven: 0,
+  });
+
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
   const [avatarMessage, setAvatarMessage] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
+
+  const [editForm, setEditForm] = useState<EditProfileForm>({
+    display_name: '',
+    username: '',
+    instagram_handle: '',
+    role: '',
+    city: '',
+    bio: '',
+    website: '',
+  });
 
   const displayName = profile?.display_name || FAKE_USER.displayName;
   const username =
-    profile?.instagram_handle || profile?.username || FAKE_USER.username;
+    profile?.instagram_handle || profile?.username || FAKE_USER.username || '';
   const avatarUrl =
     profile?.avatar_url || FAKE_USER.avatarUrl || getFallbackAvatar(profile?.id);
-  const role = profile?.role || FAKE_USER.role;
-  const city = profile?.city || FAKE_USER.city;
-  const bio = profile?.bio || FAKE_USER.bio;
-  const website = profile?.website || FAKE_USER.website;
-  const cleanUsername = username.replace('@', '');
-  const instagramUrl = `https://www.instagram.com/${cleanUsername}`;
+  const role = profile?.role || FAKE_USER.role || 'Creative';
+  const city = profile?.city || FAKE_USER.city || 'No location added';
+  const bio =
+    profile?.bio ||
+    FAKE_USER.bio ||
+    'No bio yet. Add a short intro so other creatives know who you are.';
+  const website = profile?.website || FAKE_USER.website || '';
+  const cleanUsername = username.replace('@', '').trim();
+  const instagramUrl = cleanUsername
+    ? `https://www.instagram.com/${cleanUsername}`
+    : '';
 
-  const critiqueItems = RECENT_REVIEWS.slice(0, 3).map((request, index) => ({
-    id: `critique-${index + 1}`,
-    photoId: request.id,
+  const critiqueItems = profilePhotos.slice(0, 3).map((photo, index) => ({
+    id: `critique-${photo.id}`,
+    photoId: photo.id,
     text:
       index === 0
-        ? 'That lighting critique was actually useful. Shadows had a purpose.'
+        ? 'Recent critique activity will show here as the beta gets more feedback.'
         : index === 1
-          ? 'Strong concept, but the crop is fighting the pose.'
-          : 'This one is portfolio ready after one cleaner color pass.',
-    imageUrl: request.imageUrl,
-    caption: request.caption,
+          ? 'Your review history will feel more alive once members start engaging.'
+          : 'This section is ready for real critique history as beta activity grows.',
+    imageUrl: photo.watermarked_url || photo.image_url || getFallbackPhoto(photo.id),
+    caption: photo.caption || 'Creative Review photo',
   }));
+
+  const syncEditForm = (currentProfile: UserProfile | null) => {
+    setEditForm({
+      display_name: currentProfile?.display_name || '',
+      username: currentProfile?.username || '',
+      instagram_handle: currentProfile?.instagram_handle || '',
+      role: currentProfile?.role || '',
+      city: currentProfile?.city || '',
+      bio: currentProfile?.bio || '',
+      website: currentProfile?.website || '',
+    });
+  };
 
   const loadProfile = async () => {
     setIsLoadingProfile(true);
+    setAvatarMessage('');
+    setProfileMessage('');
 
     try {
       const {
@@ -99,10 +179,16 @@ export default function Profile() {
 
       if (!user) {
         setProfile(null);
+        setProfilePhotos([]);
+        setStats({
+          framesUploaded: 0,
+          reviewsReceived: 0,
+          reviewsGiven: 0,
+        });
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(
           `
@@ -120,12 +206,62 @@ export default function Profile() {
         .eq('id', user.id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      setProfile(data as UserProfile | null);
+      const currentProfile = profileData as UserProfile | null;
+
+      setProfile(currentProfile);
+      syncEditForm(currentProfile);
+
+      const { data: photosData, error: photosError } = await supabase
+        .from('photos')
+        .select(
+          `
+          id,
+          image_url,
+          watermarked_url,
+          caption,
+          content_rating,
+          review_count,
+          created_at
+        `
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (photosError) throw photosError;
+
+      const photos = (photosData || []) as ProfilePhoto[];
+
+      setProfilePhotos(photos);
+
+      const { count: reviewsGivenCount, error: reviewsGivenError } = await supabase
+        .from('critiques')
+        .select('id', { count: 'exact', head: true })
+        .eq('reviewer_id', user.id);
+
+      if (reviewsGivenError) {
+        console.warn('Reviews given count error:', reviewsGivenError);
+      }
+
+      const reviewsReceived = photos.reduce((total, photo) => {
+        return total + (photo.review_count || 0);
+      }, 0);
+
+      setStats({
+        framesUploaded: photos.length,
+        reviewsReceived,
+        reviewsGiven: reviewsGivenCount || 0,
+      });
     } catch (error) {
       console.error('Profile load error:', error);
       setProfile(null);
+      setProfilePhotos([]);
+      setStats({
+        framesUploaded: 0,
+        reviewsReceived: 0,
+        reviewsGiven: 0,
+      });
     } finally {
       setIsLoadingProfile(false);
     }
@@ -134,6 +270,77 @@ export default function Profile() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  const handleEditFormChange = (
+    field: keyof EditProfileForm,
+    value: string
+  ) => {
+    setEditForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    setProfileMessage('');
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        throw new Error('You must be logged in to update your profile.');
+      }
+
+      const updates = {
+        display_name: editForm.display_name.trim() || null,
+        username: editForm.username.trim().replace('@', '') || null,
+        instagram_handle:
+          editForm.instagram_handle.trim().replace('@', '') || null,
+        role: editForm.role.trim() || null,
+        city: editForm.city.trim() || null,
+        bio: editForm.bio.trim() || null,
+        website: normalizeWebsite(editForm.website) || null,
+      };
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile((current) =>
+        current
+          ? {
+            ...current,
+            ...updates,
+          }
+          : {
+            id: user.id,
+            avatar_url: null,
+            ...updates,
+          }
+      );
+
+      setProfileMessage('Profile updated.');
+      setIsEditingProfile(false);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong updating your profile.';
+
+      setProfileMessage(message);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleAvatarUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -144,6 +351,7 @@ export default function Profile() {
 
     setIsUploadingAvatar(true);
     setAvatarMessage('');
+    setProfileMessage('');
 
     try {
       const {
@@ -235,23 +443,170 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-8 pb-20">
-      <section className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
-        <div className="h-24 md:h-36 bg-gradient-to-br from-brand-accent/20 via-brand-gray to-brand-black relative">
-          <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent" />
+    <div className="space-y-6 pb-20">
+      <section className="bg-brand-black border border-white/10 rounded-3xl p-5 md:p-6">
+        <div className="flex items-start gap-4 md:gap-6">
+          <div className="relative w-24 h-24 md:w-28 md:h-28 rounded-full border-2 border-white/15 overflow-hidden flex-shrink-0 bg-brand-gray">
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="w-full h-full object-cover"
+              draggable={false}
+              onError={(event) => {
+                event.currentTarget.src = getFallbackAvatar(profile?.id);
+              }}
+            />
 
-          <button
-            type="button"
-            className="absolute top-4 right-4 min-h-[44px] min-w-[44px] bg-black/40 backdrop-blur-md rounded-full border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center"
-            aria-label="Profile settings"
-          >
-            <Settings size={20} />
-          </button>
+            {isUploadingAvatar && (
+              <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                <Loader2 size={20} className="animate-spin text-white" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-lg md:text-2xl font-black text-white">
+                  {stats.framesUploaded}
+                </p>
+                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                  Frames
+                </p>
+              </div>
+
+              <div>
+                <p className="text-lg md:text-2xl font-black text-white">
+                  {stats.reviewsReceived}
+                </p>
+                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                  Received
+                </p>
+              </div>
+
+              <div>
+                <p className="text-lg md:text-2xl font-black text-white">
+                  {stats.reviewsGiven}
+                </p>
+                <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-500">
+                  Given
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="p-5 md:p-8 -mt-10 relative z-10">
-          <div className="flex items-start gap-4">
-            <label className="relative w-20 h-20 md:w-24 md:h-24 rounded-3xl border-4 border-brand-black bg-brand-gray overflow-hidden flex-shrink-0 cursor-pointer group block">
+        <div className="mt-5 space-y-3">
+          <div>
+            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
+              {isLoadingProfile ? 'Loading...' : displayName}
+            </h1>
+
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                <Briefcase size={13} />
+                {role}
+              </span>
+
+              {city && (
+                <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  <MapPin size={13} />
+                  {city}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-300 leading-relaxed max-w-2xl">
+            {bio}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {cleanUsername && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent hover:text-white transition-colors"
+              >
+                <Instagram size={13} />
+                @{cleanUsername}
+                <ExternalLink size={11} />
+              </a>
+            )}
+
+            {website && (
+              <a
+                href={website}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-brand-accent transition-colors"
+              >
+                <Globe size={13} />
+                Website
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+
+          {(avatarMessage || profileMessage) && (
+            <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+              {avatarMessage || profileMessage}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditingProfile((current) => !current);
+                syncEditForm(profile);
+                setProfileMessage('');
+                setAvatarMessage('');
+              }}
+              className="min-h-[46px] rounded-xl bg-brand-gray border border-white/10 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center"
+            >
+              Edit Profile
+            </button>
+
+            <Link
+              to="/feed"
+              className="min-h-[46px] rounded-xl bg-brand-gray border border-white/10 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center"
+            >
+              Browse Feed
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {isEditingProfile && (
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-6 space-y-5"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent mb-1">
+                Edit Profile
+              </p>
+              <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">
+                Update Your Info
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsEditingProfile(false)}
+              className="min-h-[40px] min-w-[40px] rounded-full bg-brand-black border border-white/10 flex items-center justify-center hover:bg-white/10"
+              aria-label="Close edit profile"
+            >
+              <X size={17} />
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-brand-black border border-white/10">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-brand-gray border border-white/10 flex-shrink-0">
               <img
                 src={avatarUrl}
                 alt={displayName}
@@ -261,202 +616,307 @@ export default function Profile() {
                   event.currentTarget.src = getFallbackAvatar(profile?.id);
                 }}
               />
+            </div>
 
-              <div className="absolute inset-0 bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                {isUploadingAvatar ? (
-                  <Loader2 size={20} className="animate-spin text-white" />
-                ) : (
-                  <Upload size={20} className="text-white" />
-                )}
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-                disabled={isUploadingAvatar}
-              />
-            </label>
-
-            <div className="flex-1 min-w-0 space-y-3 pt-2">
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h1 className="text-2xl md:text-4xl font-black tracking-tighter uppercase">
-                    {isLoadingProfile ? 'Loading...' : displayName}
-                  </h1>
-
-                  {FAKE_USER.isSupporter && (
-                    <div className="min-h-[24px] px-3 py-1 bg-brand-accent text-brand-black text-[8px] font-black rounded-full uppercase tracking-widest flex items-center gap-1">
-                      <Star size={10} fill="black" /> Supporter
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <a
-                    href={instagramUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent hover:text-white transition-colors"
-                  >
-                    <Instagram size={13} />
-                    @{cleanUsername}
-                    <ExternalLink size={11} />
-                  </a>
-
-                  {website && (
-                    <a
-                      href={website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-brand-accent transition-colors"
-                    >
-                      <Globe size={13} />
-                      Website
-                      <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-400 font-medium leading-relaxed max-w-2xl">
-                {bio}
+            <div className="flex-1 text-center sm:text-left">
+              <p className="text-xs font-black uppercase tracking-widest text-white mb-1">
+                Profile Picture
+              </p>
+              <p className="text-xs text-gray-500 font-bold mb-3">
+                Max 5MB. Square images work best.
               </p>
 
-              {avatarMessage && (
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
-                  {avatarMessage}
-                </p>
-              )}
+              <label className="inline-flex min-h-[42px] px-4 rounded-2xl bg-brand-accent text-brand-black font-black uppercase text-[10px] tracking-widest items-center justify-center gap-2 cursor-pointer">
+                {isUploadingAvatar ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    Uploading
+                  </>
+                ) : (
+                  <>
+                    <Upload size={15} />
+                    Change Photo
+                  </>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  disabled={isUploadingAvatar}
+                />
+              </label>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-5">
-            <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-brand-accent flex items-center gap-2">
-              <Briefcase size={13} /> {role}
-            </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Display Name
+              </span>
+              <input
+                value={editForm.display_name}
+                onChange={(event) =>
+                  handleEditFormChange('display_name', event.target.value)
+                }
+                placeholder="Kevin Russell"
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              />
+            </label>
 
-            <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-              <MapPin size={13} /> {city}
-            </span>
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Username
+              </span>
+              <input
+                value={editForm.username}
+                onChange={(event) =>
+                  handleEditFormChange('username', event.target.value)
+                }
+                placeholder="himoverthere"
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              />
+            </label>
 
-            <span className="min-h-[34px] px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2">
-              <Award size={13} /> {FAKE_USER.experienceLevel}
-            </span>
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Instagram Handle
+              </span>
+              <input
+                value={editForm.instagram_handle}
+                onChange={(event) =>
+                  handleEditFormChange('instagram_handle', event.target.value)
+                }
+                placeholder="himoverthere"
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Role
+              </span>
+              <select
+                value={editForm.role}
+                onChange={(event) =>
+                  handleEditFormChange('role', event.target.value)
+                }
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              >
+                <option value="">Choose role</option>
+                <option value="Photographer">Photographer</option>
+                <option value="Model">Model</option>
+                <option value="MUA">MUA</option>
+                <option value="Retoucher">Retoucher</option>
+                <option value="Designer">Designer</option>
+                <option value="Creative Director">Creative Director</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                City
+              </span>
+              <input
+                value={editForm.city}
+                onChange={(event) =>
+                  handleEditFormChange('city', event.target.value)
+                }
+                placeholder="Chicago"
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Website
+              </span>
+              <input
+                value={editForm.website}
+                onChange={(event) =>
+                  handleEditFormChange('website', event.target.value)
+                }
+                placeholder="https://yourwebsite.com"
+                className="w-full min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+              />
+            </label>
           </div>
-        </div>
-      </section>
 
-      <section className="flex gap-3 overflow-x-auto md:grid md:grid-cols-3 md:overflow-visible no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="min-w-[58%] md:min-w-0 bg-brand-gray border border-white/10 rounded-2xl p-5 text-center">
-          <p className="text-3xl font-black text-brand-accent mb-1">82</p>
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-            Reviews Given
-          </p>
-        </div>
+          <label className="space-y-2 block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+              Bio
+            </span>
+            <textarea
+              value={editForm.bio}
+              onChange={(event) =>
+                handleEditFormChange('bio', event.target.value)
+              }
+              placeholder="Tell the community who you are and what kind of work you create."
+              rows={4}
+              className="w-full rounded-2xl bg-brand-black border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-brand-accent resize-none"
+            />
+          </label>
 
-        <div className="min-w-[58%] md:min-w-0 bg-brand-gray border border-white/10 rounded-2xl p-5 text-center">
-          <p className="text-3xl font-black text-white mb-1">24</p>
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-            Reviews Received
-          </p>
-        </div>
+          {profileMessage && (
+            <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+              {profileMessage}
+            </p>
+          )}
 
-        <div className="min-w-[58%] md:min-w-0 bg-brand-gray border border-white/10 rounded-2xl p-5 text-center">
-          <p className="text-3xl font-black text-brand-critique mb-1">4.8</p>
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-            Growth Factor
-          </p>
-        </div>
-      </section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+              className="min-h-[52px] bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {isSavingProfile ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Saving
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save Profile
+                </>
+              )}
+            </button>
 
-      <section className="bg-brand-accent/10 border border-brand-accent/20 rounded-3xl p-5 md:p-6 space-y-4">
-        <div className="flex items-center gap-3 text-brand-accent">
-          <ShieldCheck size={22} />
+            <button
+              type="button"
+              onClick={() => {
+                syncEditForm(profile);
+                setIsEditingProfile(false);
+              }}
+              className="min-h-[52px] bg-brand-black border border-white/10 text-gray-300 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </motion.section>
+      )}
 
-          <h4 className="text-xs font-black uppercase tracking-widest">
-            Creative Member
-          </h4>
-        </div>
-
-        <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed tracking-wider">
-          Proud and productive member. Never banned. Always honest.
-        </p>
-      </section>
-
-      <section className="space-y-5">
-        <div className="grid grid-cols-2 gap-3">
+      <section className="border-b border-white/10">
+        <div className="grid grid-cols-2">
           <button
             type="button"
             onClick={() => setActiveTab('frames')}
-            className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'frames'
-              ? 'bg-brand-accent border-brand-accent text-brand-black'
-              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+            className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'frames'
+              ? 'border-brand-accent text-brand-accent'
+              : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
-            <Grid size={15} /> Frames
+            <Grid size={15} />
+            Frames
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('critiques')}
-            className={`min-h-[52px] rounded-2xl border flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'critiques'
-              ? 'bg-brand-accent border-brand-accent text-brand-black'
-              : 'bg-brand-gray border-white/10 text-gray-500 hover:text-white'
+            className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'critiques'
+              ? 'border-brand-accent text-brand-accent'
+              : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
-            <History size={15} /> Critiques
+            <History size={15} />
+            Critiques
           </button>
         </div>
+      </section>
 
-        {activeTab === 'frames' ? (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-3 gap-1 md:gap-3"
-          >
-            {RECENT_REVIEWS.map((request) => {
-              const isExplicit = request.contentRating === 'Explicit';
+      {activeTab === 'frames' ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-3 gap-1 md:gap-3"
+        >
+          {isLoadingProfile ? (
+            <div className="col-span-3 bg-brand-gray border border-white/10 rounded-3xl p-8 text-center">
+              <Loader2
+                size={22}
+                className="animate-spin text-brand-accent mx-auto mb-3"
+              />
+              <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                Loading frames
+              </p>
+            </div>
+          ) : profilePhotos.length > 0 ? (
+            profilePhotos.map((photo) => {
+              const isExplicit = photo.content_rating === 'Explicit';
+              const imageUrl =
+                photo.watermarked_url ||
+                photo.image_url ||
+                getFallbackPhoto(photo.id);
 
               return (
                 <Link
-                  key={request.id}
-                  to={`/photo/${request.id}`}
+                  key={photo.id}
+                  to={`/photo/${photo.id}`}
                   className="aspect-square overflow-hidden relative group cursor-pointer border border-white/5 bg-brand-gray block"
                 >
                   <img
-                    src={request.imageUrl}
-                    alt={request.caption}
+                    src={imageUrl}
+                    alt={photo.caption || 'Creative Review photo'}
                     className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${isExplicit ? 'blur-md scale-110' : ''
                       }`}
                     draggable={false}
                     onContextMenu={(event) => event.preventDefault()}
+                    onError={(event) => {
+                      event.currentTarget.src = getFallbackPhoto(photo.id);
+                    }}
                   />
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                   <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <p className="text-[8px] font-black text-brand-accent uppercase">
-                      {request.reviewCount} reviews
+                      {photo.review_count || 0} reviews
                     </p>
 
                     <p className="text-[9px] font-bold uppercase line-clamp-1">
-                      {getRatingLabel(request.contentRating)}
+                      {getRatingLabel(photo.content_rating)}
                     </p>
                   </div>
                 </Link>
               );
-            })}
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-3"
-          >
-            {critiqueItems.map((critique, index) => (
+            })
+          ) : (
+            <div className="col-span-3 bg-brand-gray border border-white/10 rounded-3xl p-8 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-brand-black border border-white/10 flex items-center justify-center mx-auto mb-4">
+                <ImageOff size={22} className="text-brand-accent" />
+              </div>
+
+              <p className="text-sm font-black uppercase tracking-widest text-white mb-2">
+                No frames yet
+              </p>
+
+              <p className="text-xs text-gray-500 font-bold max-w-sm mx-auto mb-5">
+                Upload your first image so the community can start giving honest
+                critique.
+              </p>
+
+              <Link
+                to="/submit"
+                className="inline-flex min-h-[44px] px-5 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-[10px] tracking-widest items-center justify-center gap-2"
+              >
+                <Camera size={15} />
+                Submit A Frame
+              </Link>
+            </div>
+          )}
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-3"
+        >
+          {critiqueItems.length > 0 ? (
+            critiqueItems.map((critique, index) => (
               <Link
                 key={critique.id}
                 to={`/photo/${critique.photoId}`}
@@ -468,12 +928,17 @@ export default function Profile() {
                     alt={critique.caption}
                     className="w-full h-full object-cover"
                     draggable={false}
+                    onError={(event) => {
+                      event.currentTarget.src = getFallbackPhoto(
+                        critique.photoId
+                      );
+                    }}
                   />
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">
-                    Critique #{index + 1}
+                    Critique Activity #{index + 1}
                   </p>
 
                   <p className="text-sm text-gray-300 leading-relaxed line-clamp-2">
@@ -485,26 +950,29 @@ export default function Profile() {
                   </p>
                 </div>
               </Link>
-            ))}
-          </motion.div>
-        )}
-      </section>
+            ))
+          ) : (
+            <div className="bg-brand-gray border border-white/10 rounded-3xl p-8 text-center">
+              <p className="text-sm font-black uppercase tracking-widest text-white mb-2">
+                No critique history yet
+              </p>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Link
-          to="/submit"
-          className="min-h-[54px] bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2"
-        >
-          <Camera size={16} /> Submit New Frame
-        </Link>
+              <p className="text-xs text-gray-500 font-bold max-w-sm mx-auto mb-5">
+                Once you start giving or receiving critiques, this section will
+                fill up.
+              </p>
 
-        <Link
-          to="/feed"
-          className="min-h-[54px] bg-brand-gray border border-white/10 text-gray-300 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 hover:text-white"
-        >
-          Browse Feed <ArrowRight size={16} />
-        </Link>
-      </section>
+              <Link
+                to="/feed"
+                className="inline-flex min-h-[44px] px-5 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-[10px] tracking-widest items-center justify-center gap-2"
+              >
+                Browse Feed
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }

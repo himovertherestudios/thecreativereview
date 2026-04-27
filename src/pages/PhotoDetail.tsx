@@ -700,10 +700,10 @@ export default function PhotoDetail() {
             <div className="absolute top-4 left-4 z-20">
               <span
                 className={`px-3 py-2 rounded-full text-[8px] font-black uppercase tracking-widest border ${photo.contentRating === 'Safe'
-                    ? 'bg-green-500/20 text-green-300 border-green-500/40'
-                    : photo.contentRating === 'Suggestive'
-                      ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-                      : 'bg-red-500/20 text-red-300 border-red-500/40'
+                  ? 'bg-green-500/20 text-green-300 border-green-500/40'
+                  : photo.contentRating === 'Suggestive'
+                    ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                    : 'bg-red-500/20 text-red-300 border-red-500/40'
                   }`}
               >
                 {photo.contentRating === 'Explicit'
@@ -815,7 +815,10 @@ export default function PhotoDetail() {
         </div>
 
         <div className="lg:w-[420px] space-y-8">
-          <div className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-8 space-y-6">
+          <div
+            id="critique-form"
+            className="bg-brand-gray border border-white/10 rounded-3xl p-5 md:p-8 space-y-6"
+          >
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-3 py-2 bg-brand-critique/20 border border-brand-critique/30 rounded-full w-fit">
                 <Skull size={14} className="text-brand-critique" />
@@ -900,8 +903,8 @@ export default function PhotoDetail() {
                           type="button"
                           onClick={() => setPortfolioReady(value)}
                           className={`min-h-[48px] py-3 text-[10px] font-black tracking-widest border rounded-2xl transition-all uppercase flex items-center justify-center gap-2 ${isSelected
-                              ? 'bg-brand-accent border-brand-accent text-brand-black'
-                              : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
+                            ? 'bg-brand-accent border-brand-accent text-brand-black'
+                            : 'border-white/10 text-gray-400 hover:border-white hover:text-white'
                             }`}
                         >
                           {value}
@@ -928,8 +931,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('self')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'self'
-                      ? 'bg-brand-accent border-brand-accent text-brand-black'
-                      : 'border-white/20 text-gray-500 hover:text-white'
+                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                    : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <User size={16} />
@@ -940,8 +943,8 @@ export default function PhotoDetail() {
                   type="button"
                   onClick={() => setCritiqueType('anon')}
                   className={`min-h-[54px] rounded-2xl border flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${critiqueType === 'anon'
-                      ? 'bg-brand-accent border-brand-accent text-brand-black'
-                      : 'border-white/20 text-gray-500 hover:text-white'
+                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                    : 'border-white/20 text-gray-500 hover:text-white'
                     }`}
                 >
                   <EyeOff size={16} />
@@ -990,9 +993,9 @@ export default function PhotoDetail() {
                     href="#"
                     onClick={(event) => {
                       event.preventDefault();
-                      window.scrollTo({
-                        top: 0,
+                      document.getElementById('critique-form')?.scrollIntoView({
                         behavior: 'smooth',
+                        block: 'start',
                       });
                     }}
                     className="min-h-[40px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest inline-flex items-center justify-center gap-2 hover:bg-white transition-all"
