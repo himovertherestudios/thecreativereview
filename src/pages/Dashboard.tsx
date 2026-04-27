@@ -1,11 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import {
-  Flame,
-  HelpCircle,
-  ArrowRight,
-  ShieldOff,
-} from 'lucide-react';
+import { Flame, ArrowRight, ShieldOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -18,14 +13,6 @@ type PhotoBackground = {
   id: string;
   image_url: string;
   watermarked_url: string | null;
-};
-
-type RecentActivityItem = {
-  id: string;
-  title: string;
-  imageUrl: string;
-  createdAt: string;
-  reviewCount: number;
 };
 
 type HotSeatItem = {
@@ -45,7 +32,7 @@ type DailyTip = {
   created_at: string;
 };
 
-type WeeklyChallenge = {
+type MonthlyChallenge = {
   id: string;
   title: string;
   description: string;
@@ -70,6 +57,9 @@ type SupabaseHotSeatRow = {
 
 const FALLBACK_TIP_BG =
   'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
+
+const FALLBACK_CHALLENGE_BG =
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
 
 const FALLBACK_VENT_BG =
   'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=80';
@@ -249,7 +239,7 @@ function getRatingLabel(contentRating: string) {
   return contentRating;
 }
 
-function pickDailyPhoto(photos: PhotoBackground[]) {
+function getPhotoByOffset(photos: PhotoBackground[], offset: number) {
   if (photos.length === 0) return null;
 
   const today = new Date();
@@ -258,7 +248,7 @@ function pickDailyPhoto(photos: PhotoBackground[]) {
     (today.getMonth() + 1) * 100 +
     today.getDate();
 
-  return photos[seed % photos.length];
+  return photos[(seed + offset) % photos.length];
 }
 
 const BETA_TIP_LAUNCH_DATE = new Date('2026-04-27T00:00:00');
@@ -295,24 +285,16 @@ function pickDailyTip(tips: DailyTip[]) {
   return tips[dayIndex];
 }
 
-function pickRandomPhoto(photos: PhotoBackground[]) {
-  if (photos.length === 0) return null;
-  return photos[Math.floor(Math.random() * photos.length)];
-}
-
 export default function Dashboard() {
   const [hotSeat, setHotSeat] = useState<HotSeatItem | null>(null);
   const [hotSeatLoading, setHotSeatLoading] = useState(true);
-  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>(
-    []
-  );
-  const [recentActivityLoading, setRecentActivityLoading] = useState(true);
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
+  const [challengeBg, setChallengeBg] = useState(FALLBACK_CHALLENGE_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
   const [dailyTip, setDailyTip] = useState(FALLBACK_TIP);
   const [dailyTipCategory, setDailyTipCategory] = useState('Shooting');
-  const [weeklyChallenge, setWeeklyChallenge] =
-    useState<WeeklyChallenge | null>(null);
+  const [monthlyChallenge, setMonthlyChallenge] =
+    useState<MonthlyChallenge | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const loadHotSeat = async () => {
@@ -341,9 +323,7 @@ export default function Dashboard() {
       .maybeSingle();
 
     if (error || !data) {
-      if (error) {
-        console.error('Error loading Hot Seat:', error.message);
-      }
+      if (error) console.error('Error loading Hot Seat:', error.message);
 
       setHotSeat(null);
       setHotSeatLoading(false);
@@ -366,42 +346,6 @@ export default function Dashboard() {
     });
 
     setHotSeatLoading(false);
-  };
-
-  const loadRecentActivity = async () => {
-    setRecentActivityLoading(true);
-
-    const { data, error } = await supabase
-      .from('photos')
-      .select('id, caption, image_url, watermarked_url, created_at, review_count')
-      .or('is_hidden.is.null,is_hidden.eq.false')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (error) {
-      console.error('Error loading recent activity:', error.message);
-      setRecentActivity([]);
-      setRecentActivityLoading(false);
-      return;
-    }
-
-    const mappedActivity: RecentActivityItem[] =
-      data?.map((photo) => {
-        const liveImageUrl = getPublicPhotoUrl(
-          photo.watermarked_url || photo.image_url
-        );
-
-        return {
-          id: photo.id,
-          title: photo.caption || 'Untitled Review Request',
-          imageUrl: liveImageUrl || FALLBACK_ACTIVITY_IMAGE,
-          createdAt: photo.created_at,
-          reviewCount: photo.review_count || 0,
-        };
-      }) || [];
-
-    setRecentActivity(mappedActivity);
-    setRecentActivityLoading(false);
   };
 
   useEffect(() => {
@@ -435,9 +379,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadHotSeat();
-    loadRecentActivity();
 
-    const loadRandomBackgrounds = async () => {
+    const loadBackgrounds = async () => {
       const { data, error } = await supabase
         .from('photos')
         .select('id, image_url, watermarked_url')
@@ -447,32 +390,37 @@ export default function Dashboard() {
 
       if (error || !data || data.length === 0) {
         setTipBg(FALLBACK_TIP_BG);
+        setChallengeBg(FALLBACK_CHALLENGE_BG);
         setVentBg(FALLBACK_VENT_BG);
         return;
       }
 
-      const photos = data as PhotoBackground[];
-
-      const validPhotos = photos.filter(
+      const validPhotos = (data as PhotoBackground[]).filter(
         (photo) => photo.watermarked_url || photo.image_url
       );
 
-      const dailyPhoto = pickDailyPhoto(validPhotos);
-      const randomPhoto = pickRandomPhoto(validPhotos);
+      const tipPhoto = getPhotoByOffset(validPhotos, 0);
+      const challengePhoto = getPhotoByOffset(validPhotos, 7);
+      const ventPhoto = getPhotoByOffset(validPhotos, 14);
 
-      const dailyUrl = getPublicPhotoUrl(
-        dailyPhoto?.watermarked_url || dailyPhoto?.image_url
+      const tipUrl = getPublicPhotoUrl(
+        tipPhoto?.watermarked_url || tipPhoto?.image_url
       );
 
-      const randomUrl = getPublicPhotoUrl(
-        randomPhoto?.watermarked_url || randomPhoto?.image_url
+      const challengeUrl = getPublicPhotoUrl(
+        challengePhoto?.watermarked_url || challengePhoto?.image_url
       );
 
-      setTipBg(dailyUrl || FALLBACK_TIP_BG);
-      setVentBg(randomUrl || FALLBACK_VENT_BG);
+      const ventUrl = getPublicPhotoUrl(
+        ventPhoto?.watermarked_url || ventPhoto?.image_url
+      );
+
+      setTipBg(tipUrl || FALLBACK_TIP_BG);
+      setChallengeBg(challengeUrl || FALLBACK_CHALLENGE_BG);
+      setVentBg(ventUrl || FALLBACK_VENT_BG);
     };
 
-    loadRandomBackgrounds();
+    loadBackgrounds();
   }, []);
 
   useEffect(() => {
@@ -486,6 +434,7 @@ export default function Dashboard() {
 
       if (error || !data || data.length === 0) {
         setDailyTip(FALLBACK_TIP);
+        setDailyTipCategory('Shooting');
         return;
       }
 
@@ -499,7 +448,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const loadWeeklyChallenge = async () => {
+    const loadMonthlyChallenge = async () => {
       const { data, error } = await supabase
         .from('challenge_suggestions')
         .select('id, title, description, is_anonymous, created_at')
@@ -510,21 +459,21 @@ export default function Dashboard() {
         .maybeSingle();
 
       if (error || !data) {
-        setWeeklyChallenge(null);
+        setMonthlyChallenge(null);
         return;
       }
 
-      setWeeklyChallenge(data as WeeklyChallenge);
+      setMonthlyChallenge(data as MonthlyChallenge);
     };
 
-    loadWeeklyChallenge();
+    loadMonthlyChallenge();
   }, []);
 
   const tipCard = (
     <BackgroundFeatureCard
-      eyebrow={`Tip of the Day • ${dailyTipCategory}`}
+      eyebrow={`Daily Tips • ${dailyTipCategory}`}
       title={dailyTip}
-      body="New tips unlock daily at midnight starting April 27. Explore past tips in the archive."
+      body="More tips unlocked daily. Explore previous tips in the archive."
       backgroundUrl={tipBg}
       fallbackUrl={FALLBACK_TIP_BG}
       button={
@@ -532,15 +481,48 @@ export default function Dashboard() {
           to="/tips"
           className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
         >
-          View tip archive <ArrowRight size={14} />
+          View tips archive <ArrowRight size={14} />
         </Link>
+      }
+    />
+  );
+
+  const challengeTitle =
+    monthlyChallenge?.title || FALLBACK_CHALLENGE_TITLE;
+
+  const challengeDescription =
+    monthlyChallenge?.description || FALLBACK_CHALLENGE_DESCRIPTION;
+
+  const challengeCard = (
+    <BackgroundFeatureCard
+      eyebrow="Monthly Challenge"
+      title={challengeTitle}
+      body={challengeDescription}
+      backgroundUrl={challengeBg}
+      fallbackUrl={FALLBACK_CHALLENGE_BG}
+      button={
+        <div className="grid gap-3">
+          <Link
+            to="/submit"
+            className="min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
+          >
+            Take the challenge <ArrowRight size={14} />
+          </Link>
+
+          <Link
+            to="/challenge-suggestion"
+            className="min-h-[42px] px-4 py-3 bg-brand-black/60 border border-white/10 text-gray-300 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:text-white hover:border-brand-accent/40 transition-all"
+          >
+            Suggest one
+          </Link>
+        </div>
       }
     />
   );
 
   const ventCard = (
     <BackgroundFeatureCard
-      eyebrow="Vent Room"
+      eyebrow="Vent Session"
       title="Can we stop asking models to “do something” without giving any direction?"
       backgroundUrl={ventBg}
       fallbackUrl={FALLBACK_VENT_BG}
@@ -559,12 +541,12 @@ export default function Dashboard() {
     <div className="flex flex-col h-full">
       {hotSeatLoading ? (
         <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-gray-400 flex items-center justify-center text-center">
-          Loading the Hot Seat...
+          Loading the Most Discussed...
         </div>
       ) : !hotSeat ? (
         <BetaEmptyState
           icon={Flame}
-          title="No Hot Seat Yet"
+          title="No Most Discussed Yet"
           body="Once members start uploading review requests and getting critiques, the most discussed photo will show up here."
           action={
             <Link
@@ -586,7 +568,7 @@ export default function Dashboard() {
                 <ShieldOff size={32} className="text-brand-critique mb-3" />
 
                 <p className="text-[10px] font-black uppercase tracking-widest text-white">
-                  NSFW Hot Seat
+                  NSFW Post
                 </p>
 
                 <p className="text-[10px] text-gray-400 mt-2">
@@ -597,10 +579,10 @@ export default function Dashboard() {
 
             <img
               src={hotSeat.imageUrl}
-              alt="Hot seat review"
+              alt="Most discussed review"
               className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
-                ? 'blur-2xl scale-105'
-                : ''
+                  ? 'blur-2xl scale-105'
+                  : ''
                 }`}
               draggable={false}
               onContextMenu={(event) => event.preventDefault()}
@@ -644,136 +626,28 @@ export default function Dashboard() {
     </div>
   );
 
-  const challengeTitle = weeklyChallenge?.title || FALLBACK_CHALLENGE_TITLE;
-
-  const challengeDescription =
-    weeklyChallenge?.description || FALLBACK_CHALLENGE_DESCRIPTION;
-
-  const challengeCard = (
-    <div className="h-full flex flex-col justify-between rounded-3xl border border-brand-accent/20 bg-gradient-to-br from-brand-accent/15 via-brand-gray to-brand-black p-5 overflow-hidden relative">
-      <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-brand-accent/10 blur-3xl" />
-      <div className="absolute -bottom-20 -left-20 w-44 h-44 rounded-full bg-brand-critique/10 blur-3xl" />
-
-      <div className="relative z-10">
-        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-accent mb-3">
-          Weekly Prompt
-        </p>
-
-        <h4 className="text-4xl font-black tracking-tighter uppercase leading-none mb-4">
-          {challengeTitle}
-        </h4>
-
-        <p className="text-sm font-medium text-gray-300 leading-relaxed">
-          {challengeDescription}
-        </p>
-      </div>
-
-      <div className="relative z-10 mt-6 grid gap-3">
-        <Link
-          to="/submit"
-          className="min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-        >
-          Take the challenge <ArrowRight size={14} />
-        </Link>
-
-        <Link
-          to="/challenge-suggestion"
-          className="min-h-[42px] px-4 py-3 bg-brand-black/60 border border-white/10 text-gray-400 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:text-white hover:border-brand-accent/40 transition-all"
-        >
-          Suggest one
-        </Link>
-      </div>
-    </div>
-  );
-
-  const recentActivityCard = (
-    <div className="space-y-3">
-      {recentActivityLoading ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
-          Loading recent activity...
-        </div>
-      ) : recentActivity.length === 0 ? (
-        <BetaEmptyState
-          icon={HelpCircle}
-          title="No Activity Yet"
-          body="Recent uploads and critique requests will appear here once beta members start posting."
-          action={
-            <Link
-              to="/submit"
-              className="min-h-[42px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
-            >
-              Start the feed <ArrowRight size={14} />
-            </Link>
-          }
-        />
-      ) : (
-        recentActivity.map((item) => (
-          <Link
-            key={item.id}
-            to={`/photo/${item.id}`}
-            className="min-h-[64px] flex items-center gap-3 p-3 rounded-2xl bg-brand-black/50 border border-white/5 hover:border-brand-accent/40 transition-all group"
-          >
-            <div className="w-12 aspect-[4/5] rounded-xl overflow-hidden flex-shrink-0 bg-brand-black">
-              <img
-                src={item.imageUrl}
-                alt={item.title}
-                className="w-full h-full object-cover"
-                draggable={false}
-                onContextMenu={(event) => event.preventDefault()}
-                onError={(event) => {
-                  event.currentTarget.src = FALLBACK_ACTIVITY_IMAGE;
-                }}
-              />
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">
-                {item.reviewCount} critique
-                {item.reviewCount === 1 ? '' : 's'}
-              </p>
-
-              <p className="text-xs font-bold truncate uppercase">
-                {item.title}
-              </p>
-            </div>
-
-            <ArrowRight
-              size={16}
-              className="text-gray-600 group-hover:text-brand-accent flex-shrink-0"
-            />
-          </Link>
-        ))
-      )}
-    </div>
-  );
-
-
   return (
-    <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-6">
+    <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-6 overflow-x-hidden">
       <div className="md:hidden space-y-4">
         <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-5 scroll-smooth overscroll-x-contain no-scrollbar touch-pan-x">
           <SwipeCard>{tipCard}</SwipeCard>
 
+          <SwipeCard>{challengeCard}</SwipeCard>
+
           <SwipeCard>{ventCard}</SwipeCard>
 
           <SwipeCard>{hotSeatCard}</SwipeCard>
-
-          <SwipeCard>{challengeCard}</SwipeCard>
-
-          <SwipeCard>{recentActivityCard}</SwipeCard>
         </div>
       </div>
 
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
-        <Card className="md:col-span-2">{tipCard}</Card>
-
-        <Card>{ventCard}</Card>
-
-        <Card className="md:row-span-2">{hotSeatCard}</Card>
+        <Card>{tipCard}</Card>
 
         <Card>{challengeCard}</Card>
 
-        <Card>{recentActivityCard}</Card>
+        <Card>{ventCard}</Card>
+
+        <Card className="md:col-span-3">{hotSeatCard}</Card>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">

@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import {
-    ArrowLeft,
-    BookOpen,
-    Filter,
-    Loader2,
-    Lock,
-    Sparkles,
-} from 'lucide-react';
+import { ArrowLeft, BookOpen, Filter, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -36,11 +29,7 @@ function getCurrentTipDayIndex(totalTips: number) {
     if (totalTips <= 0) return 0;
 
     const now = new Date();
-    const todayMidnight = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate()
-    );
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const launchMidnight = new Date(
         BETA_TIP_LAUNCH_DATE.getFullYear(),
@@ -56,10 +45,29 @@ function getCurrentTipDayIndex(totalTips: number) {
     return Math.max(0, Math.min(dayDifference, totalTips - 1));
 }
 
-function getTipStatus(index: number, currentDayIndex: number) {
-    if (index < currentDayIndex) return 'Previous Tip';
-    if (index === currentDayIndex) return 'Today’s Tip';
-    return 'Locked';
+function getOrdinalSuffix(day: number) {
+    if (day > 3 && day < 21) return 'th';
+
+    switch (day % 10) {
+        case 1:
+            return 'st';
+        case 2:
+            return 'nd';
+        case 3:
+            return 'rd';
+        default:
+            return 'th';
+    }
+}
+
+function formatTipDate(index: number) {
+    const date = new Date(BETA_TIP_LAUNCH_DATE);
+    date.setDate(BETA_TIP_LAUNCH_DATE.getDate() + index);
+
+    const month = date.toLocaleString('en-US', { month: 'long' });
+    const day = date.getDate();
+
+    return `${month} ${day}${getOrdinalSuffix(day)}`;
 }
 
 export default function TipsArchive() {
@@ -106,22 +114,22 @@ export default function TipsArchive() {
         return unlockedTips.filter((tip) => tip.category === selectedCategory);
     }, [unlockedTips, selectedCategory]);
 
-    const lockedCount = Math.max(0, tips.length - unlockedTips.length);
-
     return (
         <div className="pb-10 space-y-6">
-            <div className="flex items-center justify-between gap-3">
-                <Link
-                    to="/dashboard"
-                    className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
-                >
-                    <ArrowLeft size={18} />
-                    Dashboard
-                </Link>
+            <div className="sticky top-16 md:top-0 z-30 -mx-4 px-4 py-4 bg-brand-black/95 backdrop-blur-xl border-b border-white/10">
+                <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+                    <Link
+                        to="/dashboard"
+                        className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
+                    >
+                        <ArrowLeft size={18} />
+                        Dashboard
+                    </Link>
 
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
-                    Day {currentDayIndex + 1}
-                </p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                        More tips unlocked daily
+                    </p>
+                </div>
             </div>
 
             <section className="rounded-3xl border border-white/10 bg-brand-gray p-5 md:p-7 relative overflow-hidden">
@@ -132,29 +140,18 @@ export default function TipsArchive() {
                     <div className="flex items-center gap-2 text-brand-accent mb-3">
                         <BookOpen size={18} />
                         <p className="text-[10px] font-black uppercase tracking-[0.3em]">
-                            Tip Archive
+                            Tips Archive
                         </p>
                     </div>
 
                     <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase leading-none">
-                        Previous Tips
+                        Tips Archive
                     </h1>
 
                     <p className="text-sm md:text-base text-gray-400 font-medium leading-relaxed mt-3 max-w-2xl">
-                        Tips unlock daily at midnight starting April 27. Use this archive to
-                        revisit shooting, posing, retouching, and business advice from the
-                        beta.
+                        More tips unlocked daily. Revisit shooting, posing, retouching, and
+                        photography business advice from the beta.
                     </p>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                        <span className="px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-brand-accent">
-                            {unlockedTips.length} unlocked
-                        </span>
-
-                        <span className="px-3 py-2 rounded-full bg-brand-black border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                            {lockedCount} upcoming
-                        </span>
-                    </div>
                 </div>
             </section>
 
@@ -224,7 +221,7 @@ export default function TipsArchive() {
                 <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredTips.map((tip) => {
                         const originalIndex = tips.findIndex((item) => item.id === tip.id);
-                        const status = getTipStatus(originalIndex, currentDayIndex);
+                        const displayDate = formatTipDate(originalIndex);
 
                         return (
                             <motion.article
@@ -241,8 +238,8 @@ export default function TipsArchive() {
                                             {tip.category || 'Shooting'}
                                         </span>
 
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">
-                                            {status}
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                            {displayDate}
                                         </span>
                                     </div>
 
@@ -251,7 +248,7 @@ export default function TipsArchive() {
                                     </p>
 
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-                                        Day {originalIndex + 1}
+                                        {displayDate}
                                     </p>
                                 </div>
                             </motion.article>
@@ -260,17 +257,11 @@ export default function TipsArchive() {
                 </section>
             )}
 
-            {lockedCount > 0 && (
-                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 flex items-center gap-3 text-gray-500">
-                    <div className="w-10 h-10 rounded-2xl bg-brand-black border border-white/10 flex items-center justify-center flex-shrink-0">
-                        <Lock size={18} className="text-brand-accent" />
-                    </div>
-
-                    <p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">
-                        More tips unlock at midnight each day during the 30-day beta run.
-                    </p>
-                </div>
-            )}
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest leading-relaxed text-gray-500">
+                    More tips unlocked daily
+                </p>
+            </div>
         </div>
     );
 }

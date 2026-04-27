@@ -18,7 +18,6 @@ import {
   PlusSquare,
   Flame,
   ShieldCheck,
-  Bell,
   Loader2,
   LogOut,
 } from 'lucide-react';
@@ -57,14 +56,7 @@ type AuthRouteProps = {
   children: React.ReactNode;
 };
 
-const AUTH_ROUTES = [
-  '/',
-  '/invite',
-  '/signup',
-  '/login',
-  '/consent',
-  '/starter-upload',
-];
+const AUTH_ROUTES = ['/', '/invite', '/signup', '/login'];
 
 function isActiveRoute(pathname: string, route: string) {
   if (route === '/feed') {
@@ -122,14 +114,14 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
-function NavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
+function MobileNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
   return (
     <Link
       to={to}
       className={`flex flex-col items-center justify-center gap-1 transition-colors ${active ? 'text-brand-accent' : 'text-gray-500 hover:text-white'
         }`}
     >
-      <Icon size={24} />
+      <Icon size={23} />
       <span className="text-[10px] uppercase font-bold tracking-wider">
         {label}
       </span>
@@ -142,8 +134,8 @@ function DesktopNavLink({ to, icon: Icon, label, active }: AppNavLinkProps) {
     <Link
       to={to}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
-        ? 'bg-brand-accent text-brand-black font-bold uppercase'
-        : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
+          ? 'bg-brand-accent text-brand-black font-bold uppercase'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white uppercase font-bold'
         }`}
     >
       <Icon size={20} />
@@ -214,7 +206,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen pb-20 md:pb-0 md:pl-64">
+    <div className="flex flex-col min-h-screen overflow-x-hidden pb-24 md:pb-0 md:pl-64">
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-brand-gray border-r border-white/10 hidden md:flex flex-col p-6 z-40">
         <div className="mb-12">
           <Link
@@ -253,7 +245,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           <DesktopNavLink
             to="/vents"
             icon={MessageSquare}
-            label="Vent Room"
+            label="Vent Session"
             active={isActiveRoute(location.pathname, '/vents')}
           />
         </nav>
@@ -281,11 +273,10 @@ function AppLayout({ children }: { children: React.ReactNode }) {
             <LogOut size={20} />
             <span className="text-xs tracking-widest">Log Out</span>
           </button>
-
         </div>
       </aside>
 
-      <header className="md:hidden sticky top-0 bg-brand-black/80 backdrop-blur-md z-40 border-b border-white/10 px-4 h-16 flex items-center justify-between">
+      <header className="md:hidden sticky top-0 bg-brand-black/90 backdrop-blur-xl z-50 border-b border-white/10 px-4 h-16 flex items-center justify-between">
         <Link
           to="/dashboard"
           className="text-sm font-bold flex items-center gap-2 hover:text-brand-accent transition-colors"
@@ -294,34 +285,21 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           The Creative Review
         </Link>
 
-        <div className="flex items-center gap-4">
-          <Bell size={20} className="text-gray-400" />
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="text-gray-400 hover:text-red-300 transition-colors"
-            aria-label="Log out"
-          >
-            <LogOut size={20} />
-          </button>
-
-          <Link
-            to="/profile"
-            className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden block"
-            aria-label="Go to profile"
-          >
-            <img
-              src={profileImage}
-              alt="Current user"
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
-          </Link>
-        </div>
+        <Link
+          to="/profile"
+          className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden block"
+          aria-label="Go to profile"
+        >
+          <img
+            src={profileImage}
+            alt="Current user"
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-6 pb-8 overflow-x-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -335,15 +313,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </AnimatePresence>
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-brand-gray/95 border-t border-white/10 px-6 h-20 grid grid-cols-5 items-center z-40 backdrop-blur-lg">
-        <NavLink
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-brand-gray/95 border-t border-white/10 px-4 h-20 grid grid-cols-5 items-center z-50 backdrop-blur-lg">
+        <MobileNavLink
           to="/dashboard"
           icon={Grid}
           label="Today"
           active={isActiveRoute(location.pathname, '/dashboard')}
         />
 
-        <NavLink
+        <MobileNavLink
           to="/feed"
           icon={Camera}
           label="Feed"
@@ -360,19 +338,23 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <NavLink
+        <MobileNavLink
           to="/vents"
           icon={MessageSquare}
-          label="Vents"
+          label="Vent"
           active={isActiveRoute(location.pathname, '/vents')}
         />
 
-        <NavLink
-          to="/profile"
-          icon={User}
-          label="Me"
-          active={isActiveRoute(location.pathname, '/profile')}
-        />
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-red-300 transition-colors"
+        >
+          <LogOut size={23} />
+          <span className="text-[10px] uppercase font-bold tracking-wider">
+            Logout
+          </span>
+        </button>
       </nav>
     </div>
   );

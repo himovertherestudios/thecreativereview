@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
-  Shield,
   Check,
   Info,
   ArrowRight,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ContentRating, HonestyLevel } from '../types';
 import { supabase } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 const CONTENT_RATINGS: ContentRating[] = ['Safe', 'Suggestive', 'Explicit'];
 
@@ -179,22 +179,35 @@ export default function SubmitReview() {
 
       const publicImageUrl = publicUrlData.publicUrl;
 
-      const { error: photoError } = await supabase.from('photos').insert({
-        user_id: user.id,
-        image_url: publicImageUrl,
-        storage_path: filePath,
-        watermarked_url: publicImageUrl,
-        watermarked_storage_path: null,
-        caption: caption.trim(),
-        content_rating: contentRating,
-        honesty_level: honestyLevel,
-        feedback_categories: selectedCategories,
-        allow_anonymous: allowAnonymous,
-        is_starter_upload: false,
-        is_hidden: false,
-      });
+      const { data: insertedPhoto, error: photoError } = await supabase
+        .from('photos')
+        .insert({
+          user_id: user.id,
+          image_url: publicImageUrl,
+          storage_path: filePath,
+          watermarked_url: publicImageUrl,
+          watermarked_storage_path: null,
+          caption: caption.trim(),
+          content_rating: contentRating,
+          honesty_level: honestyLevel,
+          feedback_categories: selectedCategories,
+          allow_anonymous: allowAnonymous,
+          is_starter_upload: false,
+          is_hidden: false,
+        })
+        .select('id')
+        .single();
 
       if (photoError) throw photoError;
+
+      await trackEvent('photo_uploaded', 'SubmitReview', {
+        photo_id: insertedPhoto.id,
+        content_rating: contentRating,
+        honesty_level: honestyLevel,
+        category_count: selectedCategories.length,
+        allow_anonymous: allowAnonymous,
+        has_caption: caption.trim().length > 0,
+      });
 
       navigate('/feed');
     } catch (error) {
@@ -241,7 +254,6 @@ export default function SubmitReview() {
           handleSubmit();
         }}
       >
-        {/* Upload Slot */}
         <div
           onClick={() => !image && openFilePicker()}
           className={`aspect-[4/5] sm:aspect-[4/3] rounded-3xl border-4 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden ${image
@@ -323,7 +335,6 @@ export default function SubmitReview() {
           )}
         </div>
 
-        {/* Caption */}
         <section className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ml-1">
             Caption / Context
@@ -341,7 +352,6 @@ export default function SubmitReview() {
           />
         </section>
 
-        {/* Content Rating */}
         <section className="space-y-3">
           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ml-1">
             Content Rating
@@ -380,7 +390,6 @@ export default function SubmitReview() {
           </p>
         </section>
 
-        {/* Honesty Level */}
         <section className="space-y-3">
           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ml-1">
             Honesty Level
@@ -419,7 +428,6 @@ export default function SubmitReview() {
           </div>
         </section>
 
-        {/* Critique Categories */}
         <section className="space-y-3">
           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ml-1">
             What do you want reviewed?
@@ -446,7 +454,6 @@ export default function SubmitReview() {
           </div>
         </section>
 
-        {/* Options */}
         <section className="space-y-4">
           <div className="p-4 bg-brand-accent/5 rounded-2xl border border-brand-accent/10 flex items-start gap-3">
             <Info size={18} className="text-brand-accent flex-shrink-0 mt-0.5" />
@@ -522,7 +529,6 @@ export default function SubmitReview() {
           </div>
         )}
 
-        {/* Desktop Submit Button */}
         <button
           type="submit"
           disabled={!canSubmit}
@@ -541,7 +547,6 @@ export default function SubmitReview() {
         </button>
       </form>
 
-      {/* Mobile Sticky Submit Button */}
       <div className="md:hidden fixed bottom-20 left-0 right-0 p-4 bg-brand-black/90 backdrop-blur-xl border-t border-white/10 z-30">
         <button
           type="button"
