@@ -109,7 +109,7 @@ export default function Supporter() {
           <ul className="space-y-4 mb-10 flex-1 relative z-10">
             <PlanFeature icon={Layout} text="Access to the review feed" />
             <PlanFeature icon={HelpCircle} text="Submit frames for critique" />
-            <PlanFeature icon={Zap} text="Post and comment in the vent room" />
+            <PlanFeature icon={Zap} text="Post and comment in The Corner" />
             <PlanFeature icon={Star} text="Use anonymous critique options" />
             <PlanFeature icon={BadgeCheck} text="Build your creative profile" />
           </ul>

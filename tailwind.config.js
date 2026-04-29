@@ -4,35 +4,36 @@ export default {
     theme: {
         extend: {
             colors: {
-                crtr: {
-                    black: '#0B0B0B',
-                    surface: '#1A1A1A',
-                    elevated: '#242424',
-                    border: '#2A2A2A',
-                    muted: '#A3A3A3',
-                    orange: '#FF5A1F',
-                    blue: '#3B82F6',
-                    red: '#991B1B',
-                    green: '#22C55E',
-                    yellow: '#FACC15',
-                },
-
-                // Backward-compatible aliases for your existing app classes
                 brand: {
                     black: '#0B0B0B',
+                    surface: '#1A1A1A',
                     gray: '#1A1A1A',
-                    accent: '#FF5A1F',
-                    critique: '#991B1B',
+                    white: '#F5F5F5',
+                    accent: '#FF3B3B',
+                    critique: '#FF3B3B',
+                    muted: '#8A8A8A',
                 },
             },
-            borderRadius: {
-                card: '18px',
-                button: '12px',
+            fontFamily: {
+                heading: ['Bebas Neue', 'Impact', 'Arial Narrow', 'sans-serif'],
+                body: ['Inter', 'system-ui', 'sans-serif'],
             },
             boxShadow: {
-                glow: '0 0 24px rgba(255, 90, 31, 0.22)',
-                card: '0 20px 50px rgba(0,0,0,0.35)',
-                soft: '0 12px 30px rgba(0,0,0,0.28)',
+                'cr-soft': '0 18px 60px rgba(0, 0, 0, 0.35)',
+                'cr-red': '0 18px 40px rgba(255, 59, 59, 0.18)',
+            },
+            borderRadius: {
+                cr: '1.5rem',
+                'cr-lg': '2rem',
+            },
+            backgroundImage: {
+                'cr-radial':
+                    'radial-gradient(circle at top left, rgba(255, 59, 59, 0.14), transparent 32%)',
+                'cr-dark':
+                    'linear-gradient(180deg, #0B0B0B 0%, #111111 45%, #0B0B0B 100%)',
+            },
+            letterSpacing: {
+                cr: '0.22em',
             },
         },
     },

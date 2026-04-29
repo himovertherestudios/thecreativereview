@@ -11,22 +11,28 @@ import {
   AlertCircle,
   Reply,
   Sparkles,
+  HelpCircle,
+  Flame,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/analytics';
+import { createNotification } from '../lib/notifications';
 
 type VentPostMode = 'self' | 'anon';
+type CornerPostType = 'vent' | 'ask';
 
 type LocalVent = {
   id: string;
-  userId: string;
+  userId: string | null;
   content: string;
   isAnonymous: boolean;
   createdAt: string;
   upvotes: number;
+  commentCount: number;
   avatarUrl?: string | null;
   displayName?: string | null;
   username?: string | null;
+  postType: CornerPostType;
 };
 
 type SupabaseVentRow = {
@@ -34,9 +40,10 @@ type SupabaseVentRow = {
   user_id: string | null;
   content: string;
   is_anonymous: boolean;
-  upvotes: number;
-  comment_count: number;
+  upvotes: number | null;
+  comment_count: number | null;
   created_at: string;
+  post_type: CornerPostType | null;
   profiles?: {
     avatar_url: string | null;
     display_name: string | null;
@@ -64,11 +71,13 @@ type SupabaseVentCommentRow = {
 function mapSupabaseVentToLocalVent(vent: SupabaseVentRow): LocalVent {
   return {
     id: vent.id,
-    userId: vent.user_id || 'anon',
+    userId: vent.user_id,
     content: vent.content,
     isAnonymous: vent.is_anonymous,
     createdAt: vent.created_at,
-    upvotes: vent.upvotes || 0,
+    upvotes: vent.upvotes ?? 0,
+    commentCount: vent.comment_count ?? 0,
+    postType: vent.post_type ?? 'vent',
     avatarUrl: vent.profiles?.avatar_url || null,
     displayName: vent.profiles?.display_name || null,
     username: vent.profiles?.username || null,
@@ -120,7 +129,7 @@ function AnonymousAvatar() {
 
 function BetaEmptyState({
   icon: Icon,
-  eyebrow = 'Beta Empty State',
+  eyebrow = 'Ready When You Are',
   title,
   body,
   action,
@@ -160,6 +169,7 @@ function BetaEmptyState({
 export default function VentRoom() {
   const [ventText, setVentText] = useState('');
   const [postMode, setPostMode] = useState<VentPostMode>('anon');
+  const [postType, setPostType] = useState<CornerPostType>('vent');
 
   const [localVents, setLocalVents] = useState<LocalVent[]>([]);
   const [realVents, setRealVents] = useState<LocalVent[]>([]);
@@ -171,23 +181,12 @@ export default function VentRoom() {
   const [isUpvoting, setIsUpvoting] = useState<Record<string, boolean>>({});
   const [upvoteErrors, setUpvoteErrors] = useState<Record<string, string>>({});
 
-
   const [comments, setComments] = useState<VentComment[]>([]);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
-    {}
-  );
-  const [commentModes, setCommentModes] = useState<Record<string, VentPostMode>>(
-    {}
-  );
-  const [isPostingComment, setIsPostingComment] = useState<
-    Record<string, boolean>
-  >({});
-  const [commentErrors, setCommentErrors] = useState<Record<string, string>>(
-    {}
-  );
-  const [activeCommentVentId, setActiveCommentVentId] = useState<string | null>(
-    null
-  );
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentModes, setCommentModes] = useState<Record<string, VentPostMode>>({});
+  const [isPostingComment, setIsPostingComment] = useState<Record<string, boolean>>({});
+  const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
+  const [activeCommentVentId, setActiveCommentVentId] = useState<string | null>(null);
 
   const allVents = [...localVents, ...realVents];
 
@@ -247,6 +246,7 @@ export default function VentRoom() {
           upvotes,
           comment_count,
           created_at,
+          post_type,
           profiles (
             avatar_url,
             display_name,
@@ -334,7 +334,7 @@ export default function VentRoom() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Something went wrong loading vents.';
+          : 'Something went wrong loading The Corner.';
 
       setVentError(message);
       setRealVents([]);
@@ -360,7 +360,7 @@ export default function VentRoom() {
       } = await supabase.auth.getUser();
 
       if (userError) throw userError;
-      if (!user) throw new Error('You must be logged in to post a vent.');
+      if (!user) throw new Error('You must be logged in to post in The Corner.');
 
       const { data, error } = await supabase
         .from('vents')
@@ -368,6 +368,7 @@ export default function VentRoom() {
           user_id: user.id,
           content: ventText.trim(),
           is_anonymous: postMode === 'anon',
+          post_type: postType,
           upvotes: 0,
           comment_count: 0,
           is_hidden: false,
@@ -381,11 +382,12 @@ export default function VentRoom() {
           upvotes,
           comment_count,
           created_at,
-         profiles (
-  avatar_url,
-  display_name,
-  username
-)
+          post_type,
+          profiles (
+            avatar_url,
+            display_name,
+            username
+          )
         `
         )
         .single();
@@ -398,19 +400,21 @@ export default function VentRoom() {
 
       setLocalVents((current) => [newVent, ...current]);
 
-      await trackEvent('vent_posted', 'VentRoom', {
+      await trackEvent('corner_posted', 'TheCorner', {
         vent_id: newVent.id,
+        post_type: postType,
         is_anonymous: postMode === 'anon',
         content_length: ventText.trim().length,
       });
 
       setVentText('');
       setPostMode('anon');
+      setPostType('vent');
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Something went wrong while posting your vent.';
+          : 'Something went wrong while posting in The Corner.';
 
       setVentError(message);
     } finally {
@@ -448,8 +452,8 @@ export default function VentRoom() {
         updateVentCountInState(vent.id, nextUpvoteCount);
 
         await trackEvent(
-          hasAlreadyUpvoted ? 'vent_upvote_removed' : 'vent_upvoted',
-          'VentRoom',
+          hasAlreadyUpvoted ? 'corner_upvote_removed' : 'corner_upvoted',
+          'TheCorner',
           {
             vent_id: vent.id,
             next_upvote_count: nextUpvoteCount,
@@ -495,6 +499,24 @@ export default function VentRoom() {
         .eq('id', vent.id);
 
       if (updateError) throw updateError;
+
+      if (!hasAlreadyUpvoted) {
+        await createNotification({
+          userId: vent.userId,
+          type: 'corner_upvoted',
+          entityType: 'corner_post',
+          entityId: vent.id,
+          message:
+            vent.postType === 'ask'
+              ? 'Someone upvoted your question in The Corner.'
+              : 'Someone upvoted your post in The Corner.',
+          metadata: {
+            vent_id: vent.id,
+            post_type: vent.postType,
+            next_upvote_count: nextUpvoteCount,
+          },
+        });
+      }
 
       updateVentCountInState(vent.id, nextUpvoteCount);
 
@@ -577,15 +599,35 @@ export default function VentRoom() {
         [ventId]: '',
       }));
 
-      await trackEvent('vent_commented', 'VentRoom', {
+      await trackEvent('corner_commented', 'TheCorner', {
         vent_id: ventId,
         comment_id: newComment.id,
         is_anonymous: getCommentMode(ventId) === 'anon',
         content_length: draft.trim().length,
       });
 
+      const parentVent = allVents.find((item) => item.id === ventId);
+
+      await createNotification({
+        userId: parentVent?.userId,
+        type: 'corner_comment_received',
+        entityType: 'corner_post',
+        entityId: ventId,
+        message:
+          parentVent?.postType === 'ask'
+            ? 'Someone answered your question in The Corner.'
+            : 'Someone commented on your post in The Corner.',
+        metadata: {
+          vent_id: ventId,
+          comment_id: newComment.id,
+          post_type: parentVent?.postType || 'vent',
+          is_anonymous: getCommentMode(ventId) === 'anon',
+        },
+      });
+
       setCommentModeForVent(ventId, 'anon');
       setActiveCommentVentId(null);
+
     } catch (error) {
       const message =
         error instanceof Error
@@ -604,17 +646,15 @@ export default function VentRoom() {
     }
   };
 
-
-
   return (
-    <div className="pb-10">
+    <div className="pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-10 overflow-x-hidden">
       <div className="max-w-2xl mx-auto space-y-5">
         <section className="space-y-3">
           <div className="flex items-center gap-2 text-brand-accent">
             <MessageSquare size={18} />
 
             <p className="text-[10px] font-black uppercase tracking-[0.3em]">
-              The Vent Session
+              The Corner
             </p>
           </div>
 
@@ -624,7 +664,8 @@ export default function VentRoom() {
             </h1>
 
             <p className="text-sm md:text-base text-gray-400 font-medium leading-relaxed">
-              Post the creative frustrations, funny truths, and industry moments people usually say off-camera. No names. No doxxing. Keep it useful.
+              Vent, ask, and talk through the creative industry moments people
+              usually say off-camera. No names. No doxxing. Keep it useful.
             </p>
           </div>
         </section>
@@ -642,6 +683,32 @@ export default function VentRoom() {
             </div>
 
             <div className="flex-1 min-w-0 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPostType('vent')}
+                  className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest border transition flex items-center justify-center gap-2 ${postType === 'vent'
+                    ? 'bg-brand-accent text-brand-black border-brand-accent'
+                    : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                    }`}
+                >
+                  <Flame size={14} />
+                  Vent
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPostType('ask')}
+                  className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest border transition flex items-center justify-center gap-2 ${postType === 'ask'
+                    ? 'bg-brand-accent text-brand-black border-brand-accent'
+                    : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                    }`}
+                >
+                  <HelpCircle size={14} />
+                  Ask
+                </button>
+              </div>
+
               <textarea
                 value={ventText}
                 onChange={(event) => {
@@ -649,7 +716,11 @@ export default function VentRoom() {
                   if (ventError) setVentError('');
                 }}
                 rows={4}
-                placeholder="Drop the creative truth nobody says out loud..."
+                placeholder={
+                  postType === 'ask'
+                    ? 'Ask the community something real...'
+                    : 'Get it off your chest...'
+                }
                 className="w-full bg-transparent border-none p-0 text-base font-medium text-white placeholder:text-gray-600 focus:outline-none resize-none leading-relaxed"
               />
 
@@ -734,7 +805,7 @@ export default function VentRoom() {
             <div className="flex items-center gap-3 text-gray-500">
               <Loader2 size={18} className="animate-spin" />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                Loading vents...
+                Loading The Corner...
               </span>
             </div>
           </div>
@@ -743,8 +814,8 @@ export default function VentRoom() {
         {ventError && !isLoadingVents && (
           <BetaEmptyState
             icon={AlertCircle}
-            eyebrow="Vent Session Error"
-            title="The Vent Session Couldn’t Load"
+            eyebrow="Corner Error"
+            title="The Corner Couldn’t Load"
             body={ventError}
             action={
               <button
@@ -761,9 +832,9 @@ export default function VentRoom() {
         {hasNoVents && (
           <BetaEmptyState
             icon={MessageSquare}
-            eyebrow="No Vents Yet"
+            eyebrow="No Corner Posts Yet"
             title="Start The First Thread"
-            body="This is where creatives can vent, joke, and talk through the weird parts of the industry. No names, no doxxing, no personal attacks."
+            body="This is where creatives can vent, ask, joke, and talk through the weird parts of the industry. No names, no doxxing, no personal attacks."
             action={
               <button
                 type="button"
@@ -775,7 +846,7 @@ export default function VentRoom() {
                 }}
                 className="min-h-[44px] px-5 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
               >
-                Write The First Vent
+                Write The First Post
                 <Send size={14} />
               </button>
             }
@@ -848,19 +919,33 @@ export default function VentRoom() {
                             </p>
                           </div>
 
-                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mt-1">
-                            {vent.isAnonymous ? 'Identity hidden' : 'Posted openly'}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border ${vent.postType === 'ask'
+                                ? 'bg-blue-500/10 text-blue-200 border-blue-400/20'
+                                : 'bg-brand-accent/10 text-brand-accent border-brand-accent/20'
+                                }`}
+                            >
+                              {vent.postType === 'ask' ? (
+                                <HelpCircle size={11} />
+                              ) : (
+                                <Flame size={11} />
+                              )}
+                              {vent.postType === 'ask' ? 'Ask' : 'Vent'}
+                            </span>
+
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
+                              {vent.isAnonymous
+                                ? 'Identity hidden'
+                                : 'Posted openly'}
+                            </p>
+                          </div>
                         </div>
-
-
                       </div>
 
                       <p className="text-[15px] md:text-base text-gray-100 font-medium leading-relaxed whitespace-pre-wrap">
                         {vent.content}
                       </p>
-
-
 
                       {upvoteErrors[vent.id] && (
                         <div className="p-3 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl">

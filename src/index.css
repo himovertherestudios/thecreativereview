@@ -8,95 +8,130 @@
   }
 
   body {
-    @apply bg-crtr-black text-white antialiased;
+    margin: 0;
+    background: #0b0b0b;
+    color: #f5f5f5;
+    font-family: Inter, system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
   }
 
   * {
-    @apply border-crtr-border;
+    box-sizing: border-box;
   }
 
   ::selection {
-    @apply bg-crtr-orange text-crtr-black;
+    background: rgba(255, 59, 59, 0.35);
+    color: #ffffff;
   }
 }
 
 @layer components {
-  .crtr-page {
-    @apply min-h-screen bg-crtr-black text-white;
+  .cr-page {
+    @apply min-h-screen bg-brand-black text-brand-white overflow-x-hidden;
   }
 
-  .crtr-section {
-    @apply space-y-5;
+  .cr-app-shell {
+    @apply min-h-screen bg-brand-black text-brand-white;
   }
 
-  .crtr-card {
-    @apply rounded-card border border-white/10 bg-crtr-surface shadow-card;
+  .cr-card {
+    @apply rounded-3xl border border-white/10 bg-brand-gray shadow-cr-soft;
   }
 
-  .crtr-card-soft {
-    @apply rounded-3xl border border-white/10 bg-crtr-surface shadow-soft;
+  .cr-card-soft {
+    @apply rounded-3xl border border-white/10 bg-white/[0.03] shadow-cr-soft;
   }
 
-  .crtr-card-hover {
-    @apply transition duration-200 hover:-translate-y-1 hover:border-crtr-orange/40 hover:shadow-glow;
+  .cr-card-red {
+    @apply rounded-3xl border border-brand-accent/20 bg-brand-accent/10 shadow-cr-red;
   }
 
-  .crtr-feature-card {
-    @apply relative overflow-hidden rounded-3xl border border-white/10 bg-crtr-surface shadow-card;
+  .cr-button-primary {
+    @apply min-h-[44px] px-5 py-3 rounded-2xl bg-brand-accent text-brand-black text-[10px] font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2 hover:bg-white transition-all disabled:opacity-30 disabled:pointer-events-none;
   }
 
-  .crtr-button-primary {
-    @apply min-h-[48px] rounded-button bg-crtr-orange px-5 py-3 text-[10px] font-black uppercase tracking-widest text-crtr-black transition hover:bg-white active:scale-95 disabled:opacity-40;
+  .cr-button-secondary {
+    @apply min-h-[44px] px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-300 text-[10px] font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:pointer-events-none;
   }
 
-  .crtr-button-secondary {
-    @apply min-h-[48px] rounded-button border border-white/15 bg-transparent px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white transition hover:border-crtr-orange hover:text-crtr-orange active:scale-95;
+  .cr-button-ghost {
+    @apply min-h-[40px] px-4 py-2 rounded-full border border-white/10 text-gray-500 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:text-white hover:border-white/20 transition-all;
   }
 
-  .crtr-button-ghost {
-    @apply min-h-[44px] rounded-button px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/50 transition hover:bg-white/5 hover:text-white;
+  .cr-input {
+    @apply w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-accent/50 focus:bg-white/[0.07] transition-all;
   }
 
-  .crtr-input {
-    @apply w-full rounded-button border border-white/10 bg-crtr-black px-4 py-3 text-sm font-medium text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
+  .cr-textarea {
+    @apply w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-accent/50 focus:bg-white/[0.07] transition-all resize-none leading-relaxed;
   }
 
-  .crtr-textarea {
-    @apply w-full resize-none rounded-button border border-white/10 bg-crtr-black px-4 py-3 text-sm font-medium text-white placeholder:text-white/40 outline-none transition focus:border-crtr-orange;
+  .cr-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border border-white/10 bg-white/5 text-gray-400;
   }
 
-  .crtr-label {
-    @apply text-[10px] font-black uppercase tracking-[0.18em] text-white/50;
+  .cr-badge-red {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border border-brand-accent/20 bg-brand-accent/10 text-brand-accent;
   }
 
-  .crtr-badge {
-    @apply inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/70;
+  .cr-badge-blue {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border border-blue-400/20 bg-blue-500/10 text-blue-200;
   }
 
-  .crtr-badge-accent {
-    @apply inline-flex items-center rounded-full border border-crtr-orange/30 bg-crtr-orange/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-crtr-orange;
+  .cr-label {
+    @apply text-[10px] font-black uppercase tracking-[0.25em] text-gray-500;
   }
 
-  .crtr-badge-danger {
-    @apply inline-flex items-center rounded-full border border-crtr-red/30 bg-crtr-red/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-red-300;
+  .cr-label-red {
+    @apply text-[10px] font-black uppercase tracking-[0.25em] text-brand-accent;
   }
 
-  .crtr-image-card {
-    @apply crtr-card crtr-card-hover relative aspect-[4/5] overflow-hidden bg-crtr-black;
+  .cr-title {
+    @apply font-black uppercase tracking-tight leading-none text-white;
   }
 
-  .crtr-image-overlay {
-    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent;
+  .cr-subtitle {
+    @apply text-sm md:text-base text-gray-400 font-medium leading-relaxed;
   }
 
-  .crtr-protected-label {
-    @apply rounded-full border border-white/10 bg-black/50 px-3 py-2 text-[8px] font-black uppercase tracking-widest text-white/70 backdrop-blur-md;
+  .cr-section-title {
+    @apply text-xl md:text-2xl font-black uppercase tracking-tight text-white;
   }
 
-  .crtr-bottom-nav {
-    @apply fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-crtr-black/90 backdrop-blur-xl;
+  .cr-image-frame {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-brand-black;
   }
 
+  .cr-gradient-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent;
+  }
+
+  .cr-nav-icon {
+    @apply flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-white transition-colors;
+  }
+
+  .cr-nav-icon-active {
+    @apply text-brand-accent;
+  }
+
+  .cr-divider {
+    @apply border-t border-white/10;
+  }
+
+  .cr-empty-state {
+    @apply min-h-[260px] rounded-3xl border border-white/10 bg-white/[0.03] p-6 flex flex-col items-center justify-center text-center relative overflow-hidden;
+  }
+}
+
+@layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -105,25 +140,37 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .cr-frame-corners {
+    position: relative;
+  }
+
+  .cr-frame-corners::before,
+  .cr-frame-corners::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: rgba(255, 59, 59, 0.65);
+    pointer-events: none;
+  }
+
+  .cr-frame-corners::before {
+    top: 10px;
+    left: 10px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .cr-frame-corners::after {
+    right: 10px;
+    bottom: 10px;
+    border-right: 1px solid;
+    border-bottom: 1px solid;
+  }
 }
 
-html,
-body,
-#root {
-  width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-}
-
-body {
-  margin: 0;
-  background: #050505;
-}
-
-* {
-  box-sizing: border-box;
-}
-
+/* Existing mobile safety helpers */
 .app-shell {
   width: 100%;
   min-height: 100vh;

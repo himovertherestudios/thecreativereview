@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Loader2,
   LogOut,
+  Bell,
 } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
@@ -43,6 +44,9 @@ import ChallengeSuggestion from './pages/ChallengeSuggestion';
 import ChallengeAdmin from './pages/ChallengeAdmin';
 import TipsArchive from './pages/TipsArchive';
 import AnalyticsAdmin from './pages/AnalyticsAdmin';
+import HotSeat from './pages/HotSeat';
+import Activity from './pages/Activity';
+import CultureOnboarding from './pages/CultureOnboarding';
 
 type AppNavLinkProps = {
   to: string;
@@ -212,12 +216,29 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mb-12">
           <Link
             to="/dashboard"
-            className="text-xl font-bold leading-tight flex items-center gap-2 hover:text-brand-accent transition-colors"
+            className="group flex items-center gap-3 hover:opacity-90 transition-opacity"
           >
-            <Flame className="text-brand-accent fill-brand-accent" size={24} />
-            <span>
-              The Creative <br /> Review
-            </span>
+            <div className="relative w-11 h-11 rounded-2xl border border-brand-accent/40 bg-brand-black flex items-center justify-center shadow-cr-red cr-frame-corners overflow-hidden">
+              <div className="absolute inset-1 rounded-xl border border-white/10" />
+              <div className="absolute w-7 h-7 rounded-full border-2 border-brand-accent/70" />
+              <Flame
+                size={20}
+                className="relative z-10 text-brand-accent fill-brand-accent"
+              />
+              <div className="absolute z-20 w-2 h-2 rounded-full bg-brand-black border border-white/70" />
+            </div>
+
+            <div className="leading-none">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand-accent">
+                Creative
+              </p>
+              <p className="text-2xl font-black uppercase tracking-tight text-white">
+                Review
+              </p>
+              <p className="text-[8px] font-black uppercase tracking-[0.22em] text-gray-600 mt-1">
+                Real Feedback. Level Up.
+              </p>
+            </div>
           </Link>
         </div>
 
@@ -244,10 +265,10 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           />
 
           <DesktopNavLink
-            to="/vents"
-            icon={MessageSquare}
-            label="Vent Session"
-            active={isActiveRoute(location.pathname, '/vents')}
+            to="/activity"
+            icon={Bell}
+            label="Activity"
+            active={isActiveRoute(location.pathname, '/activity')}
           />
         </nav>
 
@@ -280,24 +301,49 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="md:hidden sticky top-0 bg-brand-black/90 backdrop-blur-xl z-50 border-b border-white/10 px-4 h-16 flex items-center justify-between">
         <Link
           to="/dashboard"
-          className="text-sm font-bold flex items-center gap-2 hover:text-brand-accent transition-colors"
+          className="group flex items-center gap-2 hover:opacity-90 transition-opacity"
         >
-          <Flame className="text-brand-accent fill-brand-accent" size={18} />
-          The Creative Review
-        </Link>
+          <div className="relative w-9 h-9 rounded-xl border border-brand-accent/40 bg-brand-black flex items-center justify-center shadow-cr-red overflow-hidden">
+            <div className="absolute inset-1 rounded-lg border border-white/10" />
+            <div className="absolute w-6 h-6 rounded-full border-2 border-brand-accent/70" />
+            <Flame
+              size={17}
+              className="relative z-10 text-brand-accent fill-brand-accent"
+            />
+            <div className="absolute z-20 w-1.5 h-1.5 rounded-full bg-brand-black border border-white/70" />
+          </div>
 
-        <Link
-          to="/profile"
-          className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden block"
-          aria-label="Go to profile"
-        >
-          <img
-            src={profileImage}
-            alt="Current user"
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
+          <div className="leading-none">
+            <p className="text-[8px] font-black uppercase tracking-[0.25em] text-brand-accent">
+              Creative
+            </p>
+            <p className="text-lg font-black uppercase tracking-tight text-white">
+              Review
+            </p>
+          </div>
         </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/activity"
+            className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-brand-accent hover:border-brand-accent/30 transition"
+            aria-label="View activity"
+          >
+            <Bell size={18} />
+          </Link>
+
+          <Link
+            to="/profile"
+            className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 overflow-hidden block"
+            aria-label="Go to profile"
+          >
+            <img
+              src={profileImage}
+              alt="Current user"
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-6 pb-8 overflow-x-hidden">
@@ -342,7 +388,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         <MobileNavLink
           to="/vents"
           icon={MessageSquare}
-          label="Vent"
+          label="Corner"
           active={isActiveRoute(location.pathname, '/vents')}
         />
 
@@ -420,6 +466,15 @@ function AppRoutes() {
         />
 
         <Route
+          path="/hot-seat"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <HotSeat />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/tips"
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
@@ -469,6 +524,24 @@ function AppRoutes() {
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <CultureOnboarding />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Activity />
             </ProtectedRoute>
           }
         />
@@ -562,6 +635,8 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+
 
         <Route
           path="/supporter"

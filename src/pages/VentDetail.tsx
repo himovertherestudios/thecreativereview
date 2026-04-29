@@ -11,11 +11,15 @@ import {
     Reply,
     Loader2,
     AlertCircle,
+    HelpCircle,
+    Flame,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { createNotification } from '../lib/notifications';
 
 
 type VentPostMode = 'self' | 'anon';
+type CornerPostType = 'vent' | 'ask';
 
 type Vent = {
     id: string;
@@ -25,11 +29,13 @@ type Vent = {
     createdAt: string;
     upvotes: number;
     commentCount?: number;
+    postType: CornerPostType;
 };
 
 type VentComment = {
     id: string;
     ventId: string;
+    userId: string | null;
     content: string;
     isAnonymous: boolean;
     createdAt: string;
@@ -48,9 +54,10 @@ type SupabaseVentRow = {
     user_id: string | null;
     content: string;
     is_anonymous: boolean;
-    upvotes: number;
-    comment_count: number;
+    upvotes: number | null;
+    comment_count: number | null;
     created_at: string;
+    post_type: CornerPostType | null;
 };
 
 type SupabaseVentCommentRow = {
@@ -78,8 +85,9 @@ function mapSupabaseVentToVent(vent: SupabaseVentRow): Vent {
         content: vent.content,
         isAnonymous: vent.is_anonymous,
         createdAt: vent.created_at,
-        upvotes: vent.upvotes || 0,
-        commentCount: vent.comment_count || 0,
+        upvotes: vent.upvotes ?? 0,
+        commentCount: vent.comment_count ?? 0,
+        postType: vent.post_type ?? 'vent',
     };
 }
 
@@ -89,6 +97,7 @@ function mapSupabaseCommentToVentComment(
     return {
         id: comment.id,
         ventId: comment.vent_id,
+        userId: comment.user_id,
         content: comment.content,
         isAnonymous: comment.is_anonymous,
         createdAt: comment.created_at,
@@ -231,7 +240,7 @@ export default function VentDetail() {
 
     const loadVentThread = async () => {
         if (!id) {
-            setPageError('This vent link is missing an ID.');
+            setPageError('This Corner thread link is missing an ID.');
             setIsLoadingVent(false);
             return;
         }
@@ -249,14 +258,15 @@ export default function VentDetail() {
                 .from('vents')
                 .select(
                     `
-          id,
-          user_id,
-          content,
-          is_anonymous,
-          upvotes,
-          comment_count,
-          created_at
-        `
+                         id,
+                        user_id,
+                        content,
+                        is_anonymous,
+                        upvotes,
+                        comment_count,
+                        created_at,
+                        post_type
+                    `
                 )
                 .eq('id', id)
                 .eq('is_hidden', false)
@@ -266,7 +276,7 @@ export default function VentDetail() {
 
             if (!ventData) {
                 setVent(null);
-                setPageError('This vent thread is no longer available.');
+                setPageError('This Corner thread is no longer available.');
                 return;
             }
 
@@ -358,7 +368,7 @@ export default function VentDetail() {
             const message =
                 error instanceof Error
                     ? error.message
-                    : 'Something went wrong loading this vent thread.';
+                    : 'Something went wrong loading this Corner thread.';
 
             setPageError(message);
             setVent(null);
@@ -426,8 +436,27 @@ export default function VentDetail() {
             );
 
             setComments((current) => [newComment, ...current]);
+
+            await createNotification({
+                userId: vent.userId,
+                type: 'corner_comment_received',
+                entityType: 'corner_post',
+                entityId: vent.id,
+                message:
+                    vent.postType === 'ask'
+                        ? 'Someone answered your question in The Corner.'
+                        : 'Someone commented on your post in The Corner.',
+                metadata: {
+                    vent_id: vent.id,
+                    comment_id: newComment.id,
+                    post_type: vent.postType,
+                    is_anonymous: commentMode === 'anon',
+                },
+            });
+
             setCommentText('');
             setCommentMode('anon');
+
         } catch (error) {
             const message =
                 error instanceof Error
@@ -520,6 +549,22 @@ export default function VentDetail() {
 
             setReplies((current) => [...current, newReply]);
 
+            const parentComment = comments.find((comment) => comment.id === commentId);
+
+            await createNotification({
+                userId: parentComment?.userId,
+                type: 'corner_reply_received',
+                entityType: 'corner_post',
+                entityId: vent?.id,
+                message: 'Someone replied to your comment in The Corner.',
+                metadata: {
+                    vent_id: vent?.id,
+                    comment_id: commentId,
+                    reply_id: newReply.id,
+                    is_anonymous: getReplyMode(commentId) === 'anon',
+                },
+            });
+
             setReplyDrafts((current) => ({
                 ...current,
                 [commentId]: '',
@@ -527,6 +572,7 @@ export default function VentDetail() {
 
             setReplyModeForComment(commentId, 'anon');
             setActiveReplyCommentId(null);
+
         } catch (error) {
             const message =
                 error instanceof Error
@@ -601,12 +647,31 @@ export default function VentDetail() {
           is_anonymous,
           upvotes,
           comment_count,
-          created_at
+          created_at,
+          post_type
           `
                 )
                 .single();
 
             if (updateError) throw updateError;
+
+            if (!hasUpvoted) {
+                await createNotification({
+                    userId: vent.userId,
+                    type: 'corner_upvoted',
+                    entityType: 'corner_post',
+                    entityId: vent.id,
+                    message:
+                        vent.postType === 'ask'
+                            ? 'Someone upvoted your question in The Corner.'
+                            : 'Someone upvoted your post in The Corner.',
+                    metadata: {
+                        vent_id: vent.id,
+                        post_type: vent.postType,
+                        next_upvote_count: nextUpvoteCount,
+                    },
+                });
+            }
 
             setHasUpvoted(!hasUpvoted);
             setVent(mapSupabaseVentToVent(updatedVent as unknown as SupabaseVentRow));
@@ -630,7 +695,7 @@ export default function VentDetail() {
                     <Loader2 size={20} className="animate-spin" />
 
                     <p className="text-[10px] font-black uppercase tracking-widest">
-                        Loading thread...
+                        Loading The Corner...
                     </p>
                 </div>
             </div>
@@ -646,16 +711,16 @@ export default function VentDetail() {
                         onClick={() => navigate(-1)}
                         className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
                     >
-                        <ChevronLeft size={18} /> Back to Vent Session
+                        <ChevronLeft size={18} /> Back to The Corner
                     </button>
 
                     <BetaEmptyState
                         icon={AlertCircle}
                         eyebrow="Thread Unavailable"
-                        title="This Vent Thread Is Not Available"
+                        title="This Corner Thread Is Not Available"
                         body={
                             pageError ||
-                            'This vent may have been deleted, hidden by moderation, or the link may be outdated.'
+                            'This post may have been deleted, hidden by moderation, or the link may be outdated.'
                         }
                         action={
                             <button
@@ -680,7 +745,7 @@ export default function VentDetail() {
                     onClick={() => navigate(-1)}
                     className="min-h-[44px] flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest"
                 >
-                    <ChevronLeft size={18} /> Back to vents
+                    <ChevronLeft size={18} /> Back to The Corner
                 </button>
 
                 <section className="bg-brand-gray border border-white/10 rounded-3xl overflow-hidden">
@@ -713,9 +778,25 @@ export default function VentDetail() {
                                             </p>
                                         </div>
 
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mt-1">
-                                            {vent.isAnonymous ? 'Identity hidden' : 'Posted openly'}
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                            <span
+                                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border ${vent.postType === 'ask'
+                                                    ? 'bg-blue-500/10 text-blue-200 border-blue-400/20'
+                                                    : 'bg-brand-accent/10 text-brand-accent border-brand-accent/20'
+                                                    }`}
+                                            >
+                                                {vent.postType === 'ask' ? (
+                                                    <HelpCircle size={11} />
+                                                ) : (
+                                                    <Flame size={11} />
+                                                )}
+                                                {vent.postType === 'ask' ? 'Ask' : 'Vent'}
+                                            </span>
+
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-700">
+                                                {vent.isAnonymous ? 'Identity hidden' : 'Posted openly'}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <button

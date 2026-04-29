@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Flame, ArrowRight, ShieldOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Flame, ArrowRight, ShieldOff, Smartphone } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 type CardProps = {
@@ -131,7 +131,7 @@ function SwipeCard({ children }: CardProps) {
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="snap-start shrink-0 w-[86vw] max-w-[380px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[420px] shadow-2xl shadow-black/20"
+      className="snap-start shrink-0 w-[86vw] max-w-[380px] bg-brand-gray border border-white/10 rounded-3xl p-4 flex flex-col min-h-[390px] shadow-2xl shadow-black/20"
     >
       <div className="flex-1 min-h-0">{children}</div>
     </motion.section>
@@ -159,7 +159,7 @@ function BetaEmptyState({
       </div>
 
       <p className="relative z-10 text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-2">
-        Beta Empty State
+        Ready When You Are
       </p>
 
       <h4 className="relative z-10 text-xl font-black uppercase tracking-tight text-white mb-3">
@@ -285,9 +285,26 @@ function pickDailyTip(tips: DailyTip[]) {
   return tips[dayIndex];
 }
 
+function getHotSeatCountdown() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+
+  tomorrow.setDate(now.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+
+  const diffMs = tomorrow.getTime() - now.getTime();
+
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs / (1000 * 60)) % 60);
+
+  return `${hours}h ${minutes}m`;
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [hotSeat, setHotSeat] = useState<HotSeatItem | null>(null);
   const [hotSeatLoading, setHotSeatLoading] = useState(true);
+  const [hotSeatCountdown, setHotSeatCountdown] = useState(getHotSeatCountdown());
   const [tipBg, setTipBg] = useState(FALLBACK_TIP_BG);
   const [challengeBg, setChallengeBg] = useState(FALLBACK_CHALLENGE_BG);
   const [ventBg, setVentBg] = useState(FALLBACK_VENT_BG);
@@ -375,6 +392,42 @@ export default function Dashboard() {
     };
 
     checkAdminStatus();
+  }, []);
+
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('has_completed_onboarding')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking onboarding status:', error.message);
+        return;
+      }
+
+      if (data && data.has_completed_onboarding === false) {
+        navigate('/onboarding');
+      }
+    };
+
+    checkOnboardingStatus();
+  }, [navigate]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHotSeatCountdown(getHotSeatCountdown());
+    }, 60000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -522,8 +575,9 @@ export default function Dashboard() {
 
   const ventCard = (
     <BackgroundFeatureCard
-      eyebrow="Vent Session"
-      title="Can we stop asking models to “do something” without giving any direction?"
+      eyebrow="The Corner"
+      title="Vent, ask, or say the quiet part."
+      body="Talk through creative frustrations, ask real questions, and get honest community perspective."
       backgroundUrl={ventBg}
       fallbackUrl={FALLBACK_VENT_BG}
       button={
@@ -531,7 +585,7 @@ export default function Dashboard() {
           to="/vents"
           className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
         >
-          Get it off your chest <ArrowRight size={14} />
+          Step Into The Corner <ArrowRight size={14} />
         </Link>
       }
     />
@@ -540,47 +594,41 @@ export default function Dashboard() {
   const hotSeatCard = (
     <div className="flex flex-col h-full">
       {hotSeatLoading ? (
-        <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-gray-400 flex items-center justify-center text-center">
-          Loading the Most Discussed...
+        <div className="flex-1 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-gray-400 flex flex-col items-center justify-center text-center min-h-[360px]">
+          <Flame size={28} className="text-brand-accent mb-4 animate-pulse" />
+
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-500">
+            Loading Hot Seat
+          </p>
+
+          <p className="text-sm text-gray-400 mt-3">
+            Finding the most discussed critique post right now...
+          </p>
         </div>
       ) : !hotSeat ? (
         <BetaEmptyState
           icon={Flame}
-          title="No Most Discussed Yet"
-          body="Once members start uploading review requests and getting critiques, the most discussed photo will show up here."
+          title="No Hot Seat Yet"
+          body="Once members start uploading review requests and getting critiques, the most discussed photo will become today’s Hot Seat."
           action={
             <Link
               to="/submit"
               className="min-h-[42px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
             >
-              Submit first <ArrowRight size={14} />
+              Submit First <ArrowRight size={14} />
             </Link>
           }
         />
       ) : (
-        <>
+        <div className="relative rounded-3xl overflow-hidden border border-brand-accent/20 bg-brand-black shadow-cr-red min-h-[440px] md:min-h-[520px]">
           <Link
-            to={`/photo/${hotSeat.id}`}
-            className="relative aspect-[4/5] rounded-2xl overflow-hidden mb-4 group cursor-pointer block bg-brand-black"
+            to="/hot-seat"
+            className="absolute inset-0 block group"
           >
-            {hotSeat.contentRating === 'Explicit' && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-5">
-                <ShieldOff size={32} className="text-brand-critique mb-3" />
-
-                <p className="text-[10px] font-black uppercase tracking-widest text-white">
-                  NSFW Post
-                </p>
-
-                <p className="text-[10px] text-gray-400 mt-2">
-                  Open to review with respect.
-                </p>
-              </div>
-            )}
-
             <img
               src={hotSeat.imageUrl}
-              alt="Most discussed review"
-              className={`w-full h-full object-cover transition-transform group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
+              alt="Hot Seat critique"
+              className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
                 ? 'blur-2xl scale-105'
                 : ''
                 }`}
@@ -591,43 +639,87 @@ export default function Dashboard() {
               }}
             />
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/65 to-black/10" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,59,59,0.28),transparent_36%)]" />
 
-            <div className="absolute top-4 left-4">
-              <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
-                Most Discussed
-              </span>
+            {hotSeat.contentRating === 'Explicit' && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-5">
+                <ShieldOff size={34} className="text-brand-critique mb-3" />
+
+                <p className="text-[10px] font-black uppercase tracking-widest text-white">
+                  NSFW Hot Seat
+                </p>
+
+                <p className="text-[10px] text-gray-400 mt-2 max-w-xs">
+                  Open to review with respect.
+                </p>
+              </div>
+            )}
+
+            <div className="absolute top-4 left-4 right-4 z-20 flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-brand-accent/30 bg-brand-accent/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-brand-accent backdrop-blur-md">
+                  <Flame size={12} />
+                  Hot Seat
+                </span>
+
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/70 backdrop-blur-md">
+                  Daily Feature
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/50 px-3 py-2 text-right backdrop-blur-md">
+                <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">
+                  Resets In
+                </p>
+                <p className="text-xs font-black uppercase tracking-widest text-white">
+                  {hotSeatCountdown}
+                </p>
+              </div>
             </div>
 
-            <div className="absolute bottom-4 left-4 right-4">
-              <p className="text-[10px] font-black text-brand-accent uppercase mb-1 tracking-widest">
-                {getRatingLabel(hotSeat.contentRating)} • {hotSeat.creatorRole}
+            <div className="absolute bottom-0 left-0 right-0 z-20 p-5 md:p-6">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/70 backdrop-blur-md">
+                  {getRatingLabel(hotSeat.contentRating)}
+                </span>
+
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/70 backdrop-blur-md">
+                  {hotSeat.creatorRole}
+                </span>
+
+                <span className="inline-flex items-center rounded-full border border-brand-accent/25 bg-brand-accent/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-brand-accent backdrop-blur-md">
+                  {hotSeat.reviewCount} critique
+                  {hotSeat.reviewCount === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-accent mb-3">
+                Today’s Most Discussed
               </p>
 
-              <p className="text-sm font-bold uppercase line-clamp-2">
+              <h3 className="text-3xl md:text-5xl font-black uppercase tracking-tight leading-none text-white max-w-2xl">
                 {hotSeat.caption}
+              </h3>
+
+              <p className="text-sm text-gray-300 mt-4 max-w-xl leading-relaxed">
+                This post is getting the most critique energy right now. Drop a
+                useful review, ask a sharper question, or help the creative level
+                up.
               </p>
 
-              <p className="text-[10px] text-gray-400 mt-2">
-                {hotSeat.reviewCount} critique
-                {hotSeat.reviewCount === 1 ? '' : 's'}
-              </p>
+              <div className="mt-5 inline-flex min-h-[46px] px-5 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest items-center justify-center gap-2 group-hover:bg-brand-accent transition-all">
+                Enter The Hot Seat <ArrowRight size={14} />
+              </div>
             </div>
           </Link>
-
-          <Link
-            to={`/photo/${hotSeat.id}`}
-            className="w-full min-h-[48px] py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-brand-accent transition-colors flex items-center justify-center gap-2"
-          >
-            Drop a Review <ArrowRight size={14} />
-          </Link>
-        </>
+        </div>
       )}
     </div>
   );
 
   return (
-    <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-6 overflow-x-hidden">
+    <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8 overflow-x-hidden">
       <div className="md:hidden space-y-4">
         <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-5 scroll-smooth overscroll-x-contain no-scrollbar touch-pan-x">
           <SwipeCard>{tipCard}</SwipeCard>
@@ -650,6 +742,25 @@ export default function Dashboard() {
         <Card className="md:col-span-3">{hotSeatCard}</Card>
       </div>
 
+      <div className="rounded-3xl border border-white/10 bg-brand-gray p-4 md:p-5">
+        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-accent/10 text-brand-accent">
+          <Smartphone size={22} />
+        </div>
+
+        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.3em] text-brand-accent">
+          App Mode
+        </p>
+
+        <h3 className="mb-2 text-lg md:text-xl font-black uppercase tracking-tight text-white">
+          Add this to your home screen.
+        </h3>
+
+        <p className="text-sm font-medium leading-relaxed text-gray-400">
+          On iPhone, tap Share, then “Add to Home Screen.” On Android, tap the
+          browser menu, then “Install App” or “Add to Home Screen.”
+        </p>
+      </div>
+
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
         <Link
           to="/feed"
@@ -666,6 +777,7 @@ export default function Dashboard() {
             Manage challenges <ArrowRight size={14} />
           </Link>
         )}
+
         {isAdmin && (
           <Link
             to="/analytics-admin"

@@ -21,8 +21,8 @@ const navItems = [
         icon: Camera,
     },
     {
-        label: 'Vent',
-        to: '/vent-room',
+        label: 'Corner',
+        to: '/vents',
         icon: MessageSquare,
     },
     {
@@ -52,8 +52,8 @@ export default function BottomNav() {
                             key={item.to}
                             to={item.to}
                             className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2 text-[10px] font-black uppercase tracking-wide transition ${isActive
-                                    ? 'text-white'
-                                    : 'text-white/45 hover:text-white'
+                                ? 'text-white'
+                                : 'text-white/45 hover:text-white'
                                 }`}
                         >
                             <Icon size={19} />

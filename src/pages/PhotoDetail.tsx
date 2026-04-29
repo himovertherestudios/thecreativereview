@@ -5,8 +5,6 @@ import {
   ChevronLeft,
   Instagram,
   MessageSquare,
-  Skull,
-  Check,
   ShieldOff,
   User,
   EyeOff,
@@ -20,6 +18,7 @@ import {
 import { ContentRating, Critique, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/analytics';
+import { createNotification } from '../lib/notifications';
 
 type CritiqueType = 'self' | 'anon';
 type PortfolioReady = 'Yes' | 'No' | 'Almost' | '';
@@ -169,7 +168,7 @@ function formatTimeAgo(dateString: string) {
 
 function BetaEmptyState({
   icon: Icon,
-  eyebrow = 'Beta Empty State',
+  eyebrow = 'Ready When You Are',
   title,
   body,
   action,
@@ -520,6 +519,23 @@ export default function PhotoDetail() {
         portfolio_ready: portfolioReady || 'Almost',
       });
 
+      await createNotification({
+        userId: photo.creatorId,
+        type: 'critique_received',
+        entityType: 'photo',
+        entityId: photo.id,
+        message:
+          critiqueType === 'anon'
+            ? 'Someone left a critique on your photo.'
+            : 'A creative left a critique on your photo.',
+        metadata: {
+          photo_id: photo.id,
+          critique_id: newCritique.id,
+          is_anonymous: critiqueType === 'anon',
+          portfolio_ready: portfolioReady || 'Almost',
+        },
+      });
+
       resetCritiqueForm();
     } catch (error) {
       const message =
@@ -549,7 +565,7 @@ export default function PhotoDetail() {
 
   if (!photo) {
     return (
-      <div className="space-y-6 pb-12">
+      <div className="space-y-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12 overflow-x-hidden">
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -580,7 +596,7 @@ export default function PhotoDetail() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12 overflow-x-hidden">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -601,6 +617,29 @@ export default function PhotoDetail() {
               onError={handleImageError}
               onContextMenu={(event) => event.preventDefault()}
             />
+
+            {shouldBlur && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-6">
+                <ShieldOff size={38} className="text-brand-critique mb-4" />
+
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-white mb-2">
+                  NSFW Content Hidden
+                </p>
+
+                <p className="text-xs text-gray-400 max-w-xs mb-5 leading-relaxed">
+                  This post is marked explicit. Reveal it only if you’re ready to review it respectfully.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setRevealed(true)}
+                  className="min-h-[44px] px-5 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-brand-accent transition-all"
+                >
+                  <Eye size={14} />
+                  Reveal Photo
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="p-5 bg-brand-gray rounded-2xl border border-white/10 space-y-5">
@@ -614,10 +653,10 @@ export default function PhotoDetail() {
 
             <div className="pt-4 border-t border-white/10">
               <Link
-                to="/profile"
+                to={`/profile/${photo.creatorId}`}
                 className="text-sm font-black uppercase hover:text-brand-accent transition-colors block truncate"
               >
-                {photo.creatorName || 'Creative Member'}
+                {photo.creatorName || 'Creative'}
               </Link>
 
               <div className="flex items-center gap-2 text-gray-500">
@@ -639,6 +678,14 @@ export default function PhotoDetail() {
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
               <MessageSquare size={14} /> {visibleReviewCount} Reviews
             </h3>
+
+            {allCritiques.length === 0 && (
+              <InlineEmptyState
+                icon={MessageSquare}
+                title="No Reviews Yet"
+                body="Be the first to give this creative useful feedback. Say what works, what needs work, and one quick fix."
+              />
+            )}
 
             {allCritiques.map((critique) => (
               <motion.div
@@ -676,6 +723,31 @@ export default function PhotoDetail() {
             <h2 className="text-2xl font-black tracking-tighter uppercase">
               Drop the Review
             </h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCritiqueType('self')}
+                className={`min-h-[44px] rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${critiqueType === 'self'
+                  ? 'bg-brand-accent text-brand-black'
+                  : 'border border-white/10 text-gray-400 hover:text-white'
+                  }`}
+              >
+                <User size={14} />
+                Use My Name
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCritiqueType('anon')}
+                className={`min-h-[44px] rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${critiqueType === 'anon'
+                  ? 'bg-white text-brand-black'
+                  : 'border border-white/10 text-gray-400 hover:text-white'
+                  }`}
+              >
+                <EyeOff size={14} />
+                Anonymous
+              </button>
+            </div>
 
             <textarea
               rows={4}
@@ -711,8 +783,8 @@ export default function PhotoDetail() {
                     type="button"
                     onClick={() => setPortfolioReady(value)}
                     className={`min-h-[48px] rounded-2xl text-[10px] font-black uppercase ${portfolioReady === value
-                        ? 'bg-brand-accent text-brand-black'
-                        : 'border border-white/10 text-gray-400'
+                      ? 'bg-brand-accent text-brand-black'
+                      : 'border border-white/10 text-gray-400'
                       }`}
                   >
                     {value}

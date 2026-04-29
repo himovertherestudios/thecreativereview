@@ -146,7 +146,7 @@ function FeedImage({
 
 function BetaEmptyState({
   icon: Icon,
-  eyebrow = 'Beta Empty State',
+  eyebrow = 'Ready When You Are',
   title,
   body,
   action,
@@ -259,9 +259,9 @@ export default function ReviewFeed() {
   }, []);
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8 overflow-x-hidden">
       {isLoadingFeed && (
-        <div className="crtr-card min-h-[220px] flex items-center justify-center">
+        <div className="bg-brand-gray border border-white/10 rounded-3xl min-h-[220px] flex items-center justify-center">
           <div className="flex items-center gap-3 text-gray-500">
             <Loader2 size={18} className="animate-spin" />
 
@@ -384,9 +384,13 @@ export default function ReviewFeed() {
 
                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
                           By{' '}
-                          <span className="text-white">
-                            {request.creatorName || 'Creative Member'}
-                          </span>{' '}
+                          <Link
+                            to={`/profile/${request.creatorId}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-white hover:text-brand-accent transition-colors underline-offset-4 hover:underline"
+                          >
+                            {request.creatorName || 'Creative'}
+                          </Link>{' '}
                           • {request.creatorRole || 'Creative'}
                         </p>
                       </div>
@@ -411,8 +415,8 @@ export default function ReviewFeed() {
 
                         <span
                           className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${request.honestyLevel === 'Cook Me Respectfully'
-                              ? 'bg-brand-critique/10 text-brand-critique'
-                              : 'bg-brand-accent/10 text-brand-accent'
+                            ? 'bg-brand-critique/10 text-brand-critique'
+                            : 'bg-brand-accent/10 text-brand-accent'
                             }`}
                         >
                           {request.honestyLevel}

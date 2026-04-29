@@ -141,20 +141,17 @@ export default function Profile() {
     ? `https://www.instagram.com/${cleanUsername}`
     : '';
   const viewedProfileId = userId || currentUserId;
-  const isOwnProfile = Boolean(currentUserId && viewedProfileId === currentUserId);
+  const isOwnProfile = Boolean(
+    currentUserId && viewedProfileId === currentUserId
+  );
 
-  const critiqueItems = profilePhotos.slice(0, 3).map((photo, index) => ({
-    id: `critique-${photo.id}`,
-    photoId: photo.id,
-    text:
-      index === 0
-        ? 'Recent critique activity will show here as the beta gets more feedback.'
-        : index === 1
-          ? 'Your review history will feel more alive once members start engaging.'
-          : 'This section is ready for real critique history as beta activity grows.',
-    imageUrl: photo.watermarked_url || photo.image_url || getFallbackPhoto(photo.id),
-    caption: photo.caption || 'Creative Review photo',
-  }));
+  const critiqueItems: {
+    id: string;
+    photoId: string;
+    text: string;
+    imageUrl: string;
+    caption: string;
+  }[] = [];
 
   const syncEditForm = (currentProfile: UserProfile | null) => {
     setEditForm({
@@ -244,10 +241,11 @@ export default function Profile() {
 
       setProfilePhotos(photos);
 
-      const { count: reviewsGivenCount, error: reviewsGivenError } = await supabase
-        .from('critiques')
-        .select('id', { count: 'exact', head: true })
-        .eq('reviewer_id', targetProfileId);
+      const { count: reviewsGivenCount, error: reviewsGivenError } =
+        await supabase
+          .from('critiques')
+          .select('id', { count: 'exact', head: true })
+          .eq('reviewer_id', targetProfileId);
 
       if (reviewsGivenError) {
         console.warn('Reviews given count error:', reviewsGivenError);
@@ -452,13 +450,11 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-20 overflow-x-hidden">
       <section className="bg-brand-black border border-white/10 rounded-3xl p-5 md:p-6">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6 text-center md:text-left">
           <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-brand-gray shadow-lg">
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/70 backdrop-blur-md text-[8px] uppercase tracking-widest font-black text-white rounded-full border border-white/10">
-              {role}
-            </div> <img
+            <img
               src={avatarUrl}
               alt={displayName}
               className="w-full h-full object-cover"
@@ -467,6 +463,10 @@ export default function Profile() {
                 event.currentTarget.src = getFallbackAvatar(profile?.id);
               }}
             />
+
+            <div className="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 px-2 py-1 bg-black/70 backdrop-blur-md text-[8px] uppercase tracking-widest font-black text-white rounded-full border border-white/10">
+              {role}
+            </div>
 
             {isUploadingAvatar && (
               <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
@@ -513,7 +513,7 @@ export default function Profile() {
               {isLoadingProfile ? 'Loading...' : displayName}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2 justify-center md:justify-start">
               <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent">
                 <Briefcase size={13} />
                 {role}
@@ -532,7 +532,7 @@ export default function Profile() {
             {bio}
           </p>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
             {cleanUsername && (
               <a
                 href={instagramUrl}
@@ -812,8 +812,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('frames')}
             className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'frames'
-              ? 'border-brand-accent text-brand-accent'
-              : 'border-transparent text-gray-500 hover:text-white'
+                ? 'border-brand-accent text-brand-accent'
+                : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
             <Grid size={15} />
@@ -824,8 +824,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('critiques')}
             className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'critiques'
-              ? 'border-brand-accent text-brand-accent'
-              : 'border-transparent text-gray-500 hover:text-white'
+                ? 'border-brand-accent text-brand-accent'
+                : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
             <History size={15} />
