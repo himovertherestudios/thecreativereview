@@ -169,7 +169,7 @@ function IdentityAvatar({ isAnonymous }: { isAnonymous: boolean }) {
 
 function BetaEmptyState({
     icon: Icon,
-    eyebrow = 'Beta Empty State',
+    eyebrow = 'Ready When You Are',
     title,
     body,
     action,

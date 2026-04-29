@@ -99,7 +99,7 @@ function getHotSeatCountdown() {
 
 function BetaEmptyState({
     icon: Icon,
-    eyebrow = 'Beta Empty State',
+    eyebrow = 'Ready When You Are',
     title,
     body,
     action,
@@ -306,8 +306,8 @@ export default function HotSeat() {
                             src={hotSeat.imageUrl}
                             alt="Hot Seat critique"
                             className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${hotSeat.contentRating === 'Explicit'
-                                    ? 'blur-2xl scale-105'
-                                    : ''
+                                ? 'blur-2xl scale-105'
+                                : ''
                                 }`}
                             draggable={false}
                             onContextMenu={(event) => event.preventDefault()}
