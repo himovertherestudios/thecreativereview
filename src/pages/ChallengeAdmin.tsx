@@ -182,7 +182,7 @@ export default function ChallengeAdmin() {
                     </h1>
 
                     <p className="text-sm text-gray-400 leading-relaxed">
-                        You do not have access to manage weekly challenges.
+                        You do not have access to manage monthly challenges.
                     </p>
                 </div>
             </div>
@@ -227,7 +227,7 @@ export default function ChallengeAdmin() {
                     </p>
 
                     <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none mb-4">
-                        Weekly Challenges
+                        Monthly Challenges
                     </h1>
 
                     <p className="text-sm md:text-base text-gray-400 leading-relaxed max-w-2xl">
@@ -272,8 +272,8 @@ export default function ChallengeAdmin() {
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className={`rounded-3xl border p-5 md:p-6 bg-brand-gray transition-all ${suggestion.is_selected
-                                        ? 'border-brand-accent/70 shadow-2xl shadow-brand-accent/10'
-                                        : 'border-white/10'
+                                    ? 'border-brand-accent/70 shadow-2xl shadow-brand-accent/10'
+                                    : 'border-white/10'
                                     }`}
                             >
                                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
@@ -324,8 +324,8 @@ export default function ChallengeAdmin() {
                                             disabled={isUpdating}
                                             onClick={() => toggleApproved(suggestion)}
                                             className={`min-h-[44px] px-4 rounded-2xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${suggestion.is_approved
-                                                    ? 'bg-brand-black border border-white/10 text-gray-400 hover:text-white'
-                                                    : 'bg-white text-brand-black hover:bg-brand-accent'
+                                                ? 'bg-brand-black border border-white/10 text-gray-400 hover:text-white'
+                                                : 'bg-white text-brand-black hover:bg-brand-accent'
                                                 }`}
                                         >
                                             {isUpdating ? (

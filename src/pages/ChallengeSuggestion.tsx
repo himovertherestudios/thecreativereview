@@ -106,7 +106,7 @@ export default function ChallengeSuggestion() {
                     </div>
 
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-accent mb-3">
-                        Challenge of the Week
+                        Challenge of the Month
                     </p>
 
                     <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none mb-4">
@@ -198,8 +198,8 @@ export default function ChallengeSuggestion() {
                         type="button"
                         onClick={() => setIsAnonymous(false)}
                         className={`min-h-[52px] rounded-2xl border px-4 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${!isAnonymous
-                                ? 'bg-brand-accent text-brand-black border-brand-accent'
-                                : 'bg-brand-black border-white/10 text-gray-500 hover:text-white'
+                            ? 'bg-brand-accent text-brand-black border-brand-accent'
+                            : 'bg-brand-black border-white/10 text-gray-500 hover:text-white'
                             }`}
                     >
                         <User size={15} />
@@ -210,8 +210,8 @@ export default function ChallengeSuggestion() {
                         type="button"
                         onClick={() => setIsAnonymous(true)}
                         className={`min-h-[52px] rounded-2xl border px-4 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${isAnonymous
-                                ? 'bg-brand-accent text-brand-black border-brand-accent'
-                                : 'bg-brand-black border-white/10 text-gray-500 hover:text-white'
+                            ? 'bg-brand-accent text-brand-black border-brand-accent'
+                            : 'bg-brand-black border-white/10 text-gray-500 hover:text-white'
                             }`}
                     >
                         <EyeOff size={15} />

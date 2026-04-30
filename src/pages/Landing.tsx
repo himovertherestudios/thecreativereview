@@ -1,12 +1,22 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Flame, ArrowRight, ShieldCheck, LogIn, Mail, Loader2 } from 'lucide-react';
+import {
+  Flame,
+  ArrowRight,
+  ShieldCheck,
+  LogIn,
+  Mail,
+  Loader2,
+  Download,
+  X,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function Landing() {
   const navigate = useNavigate();
   const [checkingSession, setCheckingSession] = React.useState(true);
+  const [showInstallModal, setShowInstallModal] = React.useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -104,6 +114,14 @@ export default function Landing() {
           >
             Request an Invite <Mail size={18} />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowInstallModal(true)}
+            className="px-10 py-5 bg-transparent border-2 border-brand-accent/50 text-brand-accent rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-brand-accent hover:text-brand-black transition-all flex items-center justify-center gap-2"
+          >
+            Add App <Download size={18} />
+          </button>
         </div>
 
         <div className="mt-16 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-widest text-gray-500">
@@ -122,6 +140,67 @@ export default function Landing() {
           ESTABLISHED IN CHAOS
         </span>
       </div>
+
+      {showInstallModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="relative w-full max-w-sm rounded-[2rem] border border-white/10 bg-brand-black p-6 shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(false)}
+              className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 hover:text-white transition-colors"
+              aria-label="Close install instructions"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="mb-5 pr-10">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.3em] text-brand-accent">
+                Install The Creative Review
+              </p>
+
+              <h2 className="text-3xl font-black uppercase tracking-tight text-white">
+                Add It To Your Home Screen
+              </h2>
+            </div>
+
+            <div className="space-y-4 text-sm leading-relaxed text-white/70">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="mb-1 font-black uppercase tracking-widest text-white">
+                  iPhone / Safari
+                </p>
+                <p>
+                  Tap the <span className="font-bold text-white">Share</span> icon, then choose{' '}
+                  <span className="font-bold text-white">Add to Home Screen</span>.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="mb-1 font-black uppercase tracking-widest text-white">
+                  Android / Chrome
+                </p>
+                <p>
+                  Tap the <span className="font-bold text-white">menu</span> button, then choose{' '}
+                  <span className="font-bold text-white">Install App</span> or{' '}
+                  <span className="font-bold text-white">Add to Home Screen</span>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(false)}
+              className="mt-6 w-full rounded-2xl bg-brand-accent px-5 py-4 text-sm font-black uppercase tracking-widest text-brand-black hover:bg-white transition-all"
+            >
+              Got It
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Camera,
   ArrowRight,
+  Images,
 } from 'lucide-react';
 import { ContentRating, Critique, HonestyLevel, ReviewRequest } from '../types';
 import { supabase } from '../lib/supabase';
@@ -22,6 +23,13 @@ import { createNotification } from '../lib/notifications';
 
 type CritiqueType = 'self' | 'anon';
 type PortfolioReady = 'Yes' | 'No' | 'Almost' | '';
+
+type SupabasePhotoSet = {
+  id: string;
+  photo_count: number | null;
+  cover_photo_url: string | null;
+  review_count: number | null;
+};
 
 type SupabasePhotoRow = {
   id: string;
@@ -35,6 +43,9 @@ type SupabasePhotoRow = {
   allow_anonymous: boolean | null;
   review_count: number | null;
   created_at: string;
+  photo_set_id: string | null;
+  sort_order: number | null;
+  photo_sets: SupabasePhotoSet | SupabasePhotoSet[] | null;
   profiles:
   | {
     display_name: string | null;
@@ -44,6 +55,20 @@ type SupabasePhotoRow = {
     avatar_url: string | null;
   }
   | null;
+};
+
+type PhotoSetImage = {
+  id: string;
+  imageUrl: string;
+  caption: string;
+  sortOrder: number;
+};
+
+type PhotoDetailRequest = ReviewRequest & {
+  photoSetId: string | null;
+  photoSetCount: number;
+  isPhotoSet: boolean;
+  sortOrder: number;
 };
 
 type SupabaseCritiqueRow = {
@@ -92,6 +117,12 @@ function getFallbackImage(seed: string | undefined) {
   return `https://picsum.photos/seed/${seed || 'creative-review'}/900/1200`;
 }
 
+function getPhotoSet(photoSetData: SupabasePhotoRow['photo_sets']) {
+  if (!photoSetData) return null;
+  if (Array.isArray(photoSetData)) return photoSetData[0] || null;
+  return photoSetData;
+}
+
 function getBestPhotoImageUrl(photo: SupabasePhotoRow) {
   const watermarkedImageUrl = getPublicPhotoUrl(photo.watermarked_url);
   const originalImageUrl = getPublicPhotoUrl(photo.image_url);
@@ -101,7 +132,10 @@ function getBestPhotoImageUrl(photo: SupabasePhotoRow) {
 
 function mapSupabasePhotoToReviewRequest(
   photo: SupabasePhotoRow
-): ReviewRequest {
+): PhotoDetailRequest {
+  const photoSet = getPhotoSet(photo.photo_sets);
+  const photoSetCount = photoSet?.photo_count || 1;
+
   return {
     id: photo.id,
     creatorId: photo.user_id,
@@ -119,6 +153,10 @@ function mapSupabasePhotoToReviewRequest(
     allowAnonymous: Boolean(photo.allow_anonymous),
     createdAt: photo.created_at,
     reviewCount: photo.review_count || 0,
+    photoSetId: photo.photo_set_id,
+    photoSetCount,
+    isPhotoSet: Boolean(photo.photo_set_id && photoSetCount > 1),
+    sortOrder: photo.sort_order || 0,
   };
 }
 
@@ -248,7 +286,9 @@ export default function PhotoDetail() {
   const [whatNeedsWork, setWhatNeedsWork] = useState('');
   const [quickFix, setQuickFix] = useState('');
 
-  const [realPhoto, setRealPhoto] = useState<ReviewRequest | null>(null);
+  const [realPhoto, setRealPhoto] = useState<PhotoDetailRequest | null>(null);
+  const [photoSetImages, setPhotoSetImages] = useState<PhotoSetImage[]>([]);
+  const [selectedSetImageIndex, setSelectedSetImageIndex] = useState(0);
   const [realCritiques, setRealCritiques] = useState<Critique[]>([]);
   const [localCritiques, setLocalCritiques] = useState<Critique[]>([]);
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(true);
@@ -260,6 +300,7 @@ export default function PhotoDetail() {
   const photo = realPhoto;
   const isExplicit = photo?.contentRating === 'Explicit';
   const shouldBlur = Boolean(isExplicit && !revealed);
+  const selectedSetImage = photoSetImages[selectedSetImageIndex] || null;
 
   const allCritiques = [...localCritiques, ...realCritiques];
   const visibleReviewCount = realCritiques.length + localCritiques.length;
@@ -277,10 +318,55 @@ export default function PhotoDetail() {
       return;
     }
 
-    const nextImageUrl = getPublicPhotoUrl(photo.imageUrl);
+    const nextImageUrl =
+      selectedSetImage?.imageUrl || getPublicPhotoUrl(photo.imageUrl);
 
     setDisplayImageUrl(nextImageUrl || getFallbackImage(photo.id));
-  }, [photo?.id, photo?.imageUrl]);
+  }, [photo?.id, photo?.imageUrl, selectedSetImage?.imageUrl]);
+
+  const loadPhotoSetImages = async (photoSetId: string, openedPhotoId: string) => {
+    const { data, error } = await supabase
+      .from('photos')
+      .select(
+        `
+        id,
+        image_url,
+        watermarked_url,
+        caption,
+        sort_order
+      `
+      )
+      .eq('photo_set_id', photoSetId)
+      .or('is_hidden.is.null,is_hidden.eq.false')
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+
+    const mappedImages: PhotoSetImage[] = (data || []).map((item) => {
+      const row = item as {
+        id: string;
+        image_url: string | null;
+        watermarked_url: string | null;
+        caption: string | null;
+        sort_order: number | null;
+      };
+
+      return {
+        id: row.id,
+        imageUrl:
+          getPublicPhotoUrl(row.watermarked_url) ||
+          getPublicPhotoUrl(row.image_url) ||
+          getFallbackImage(row.id),
+        caption: row.caption || 'Photo set image',
+        sortOrder: row.sort_order || 0,
+      };
+    });
+
+    setPhotoSetImages(mappedImages);
+
+    const openedIndex = mappedImages.findIndex((image) => image.id === openedPhotoId);
+    setSelectedSetImageIndex(openedIndex >= 0 ? openedIndex : 0);
+  };
 
   const loadPhotoDetail = async () => {
     if (!id) {
@@ -293,6 +379,8 @@ export default function PhotoDetail() {
     setPageError('');
     setRevealed(false);
     setRealPhoto(null);
+    setPhotoSetImages([]);
+    setSelectedSetImageIndex(0);
     setRealCritiques([]);
     setLocalCritiques([]);
 
@@ -311,7 +399,15 @@ export default function PhotoDetail() {
           feedback_categories,
           allow_anonymous,
           review_count,
-          created_at
+          created_at,
+          photo_set_id,
+          sort_order,
+          photo_sets (
+            id,
+            photo_count,
+            cover_photo_url,
+            review_count
+          )
         `
         )
         .eq('id', id)
@@ -335,6 +431,11 @@ export default function PhotoDetail() {
         avatar_url: string | null;
       } | null = null;
 
+      const typedPhotoData = photoData as unknown as Omit<
+        SupabasePhotoRow,
+        'profiles'
+      >;
+
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .select(
@@ -346,7 +447,7 @@ export default function PhotoDetail() {
           avatar_url
         `
         )
-        .eq('id', photoData.user_id)
+        .eq('id', typedPhotoData.user_id)
         .maybeSingle();
 
       if (!profileError) {
@@ -354,7 +455,7 @@ export default function PhotoDetail() {
       }
 
       const mappedPhoto = mapSupabasePhotoToReviewRequest({
-        ...(photoData as unknown as Omit<SupabasePhotoRow, 'profiles'>),
+        ...typedPhotoData,
         profiles: {
           display_name: profileData?.display_name || null,
           username: profileData?.username || null,
@@ -365,11 +466,29 @@ export default function PhotoDetail() {
       } as SupabasePhotoRow);
 
       setRealPhoto(mappedPhoto);
+
+      if (mappedPhoto.photoSetId) {
+        await loadPhotoSetImages(mappedPhoto.photoSetId, mappedPhoto.id);
+      } else {
+        setPhotoSetImages([
+          {
+            id: mappedPhoto.id,
+            imageUrl: mappedPhoto.imageUrl,
+            caption: mappedPhoto.caption,
+            sortOrder: 0,
+          },
+        ]);
+        setSelectedSetImageIndex(0);
+      }
+
       await trackEvent('photo_viewed', 'PhotoDetail', {
         photo_id: mappedPhoto.id,
+        photo_set_id: mappedPhoto.photoSetId,
         creator_id: mappedPhoto.creatorId,
         content_rating: mappedPhoto.contentRating,
         review_count: mappedPhoto.reviewCount,
+        is_photo_set: mappedPhoto.isPhotoSet,
+        photo_set_count: mappedPhoto.photoSetCount,
       });
 
       const { data: critiqueData, error: critiqueError } = await supabase
@@ -408,6 +527,7 @@ export default function PhotoDetail() {
 
       setPageError(message);
       setRealPhoto(null);
+      setPhotoSetImages([]);
       setRealCritiques([]);
     } finally {
       setIsLoadingPhoto(false);
@@ -511,12 +631,23 @@ export default function PhotoDetail() {
         })
         .eq('id', photo.id);
 
+      if (photo.photoSetId) {
+        await supabase
+          .from('photo_sets')
+          .update({
+            review_count: nextReviewCount,
+          })
+          .eq('id', photo.photoSetId);
+      }
+
       await trackEvent('critique_submitted', 'PhotoDetail', {
         photo_id: photo.id,
+        photo_set_id: photo.photoSetId,
         critique_id: newCritique.id,
         creator_id: photo.creatorId,
         is_anonymous: critiqueType === 'anon',
         portfolio_ready: portfolioReady || 'Almost',
+        is_photo_set: photo.isPhotoSet,
       });
 
       await createNotification({
@@ -530,9 +661,11 @@ export default function PhotoDetail() {
             : 'A creative left a critique on your photo.',
         metadata: {
           photo_id: photo.id,
+          photo_set_id: photo.photoSetId,
           critique_id: newCritique.id,
           is_anonymous: critiqueType === 'anon',
           portfolio_ready: portfolioReady || 'Almost',
+          is_photo_set: photo.isPhotoSet,
         },
       });
 
@@ -610,13 +743,31 @@ export default function PhotoDetail() {
           <div className="relative rounded-3xl overflow-hidden bg-brand-gray/50 border border-white/5 aspect-[4/5] max-h-[820px]">
             <img
               src={displayImageUrl}
-              alt={photo.caption}
+              alt={selectedSetImage?.caption || photo.caption}
               className={`w-full h-full object-contain bg-black ${shouldBlur ? 'blur-3xl grayscale scale-105' : ''
                 }`}
               draggable={false}
               onError={handleImageError}
               onContextMenu={(event) => event.preventDefault()}
             />
+
+            {photo.isPhotoSet && (
+              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/75 border border-white/15 backdrop-blur-md">
+                <Images size={13} className="text-brand-accent" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-white">
+                  Photo Set • {selectedSetImageIndex + 1}/{photoSetImages.length || photo.photoSetCount}
+                </span>
+              </div>
+            )}
+
+            {!photo.isPhotoSet && (
+              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/60 border border-white/10 backdrop-blur-md">
+                <Camera size={13} className="text-white/70" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/80">
+                  Single Frame
+                </span>
+              </div>
+            )}
 
             {shouldBlur && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-6">
@@ -642,7 +793,81 @@ export default function PhotoDetail() {
             )}
           </div>
 
+          {photo.isPhotoSet && photoSetImages.length > 1 && (
+            <div className="rounded-3xl border border-white/10 bg-brand-gray p-4 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Images size={16} className="text-brand-accent" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                    Full Photo Set
+                  </p>
+                </div>
+
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  {photoSetImages.length} Images
+                </p>
+              </div>
+
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {photoSetImages.map((setImage, index) => {
+                  const isSelected = selectedSetImageIndex === index;
+
+                  return (
+                    <button
+                      key={setImage.id}
+                      type="button"
+                      onClick={() => setSelectedSetImageIndex(index)}
+                      className={`relative aspect-[4/5] overflow-hidden rounded-xl border transition-all ${isSelected
+                        ? 'border-brand-accent ring-2 ring-brand-accent/30'
+                        : 'border-white/10 opacity-60 hover:opacity-100 hover:border-white/30'
+                        }`}
+                    >
+                      <img
+                        src={setImage.imageUrl}
+                        alt={`Photo set image ${index + 1}`}
+                        className={`h-full w-full object-cover ${shouldBlur ? 'blur-md scale-105 grayscale' : ''
+                          }`}
+                        draggable={false}
+                        onContextMenu={(event) => event.preventDefault()}
+                      />
+
+                      <div className="absolute right-1.5 top-1.5 rounded-full bg-black/75 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">
+                        {index + 1}
+                      </div>
+
+                      {index === 0 && (
+                        <div className="absolute left-1.5 bottom-1.5 rounded-full bg-brand-accent px-1.5 py-0.5 text-[7px] font-black uppercase tracking-widest text-brand-black">
+                          Cover
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
+                Tap a thumbnail to view another frame from this set. Reviews currently attach to the cover post.
+              </p>
+            </div>
+          )}
+
           <div className="p-5 bg-brand-gray rounded-2xl border border-white/10 space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-1 rounded-full bg-white/5 text-[8px] font-black uppercase tracking-widest text-gray-400 border border-white/10">
+                {photo.contentRating === 'Explicit' ? 'NSFW' : photo.contentRating}
+              </span>
+
+              {photo.isPhotoSet && (
+                <span className="px-2 py-1 rounded-full bg-brand-accent/10 text-[8px] font-black uppercase tracking-widest text-brand-accent border border-brand-accent/20">
+                  {photo.photoSetCount} Images
+                </span>
+              )}
+
+              <span className="px-2 py-1 rounded-full bg-white/5 text-[8px] font-black uppercase tracking-widest text-gray-400 border border-white/10">
+                {photo.honestyLevel}
+              </span>
+            </div>
+
             <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight">
               {photo.caption}
             </h1>
@@ -723,6 +948,16 @@ export default function PhotoDetail() {
             <h2 className="text-2xl font-black tracking-tighter uppercase">
               Drop the Review
             </h2>
+
+            {photo.isPhotoSet && (
+              <div className="rounded-2xl border border-brand-accent/20 bg-brand-accent/10 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent leading-relaxed">
+                  This is a photo set. Your review will attach to the cover post,
+                  but you can reference the whole set in your critique.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -792,6 +1027,19 @@ export default function PhotoDetail() {
                 );
               })}
             </div>
+
+            {submitError && (
+              <div className="p-4 bg-brand-critique/10 border border-brand-critique/30 rounded-2xl flex items-start gap-3">
+                <AlertCircle
+                  size={18}
+                  className="text-brand-critique flex-shrink-0 mt-0.5"
+                />
+
+                <p className="text-[10px] uppercase font-black tracking-widest text-brand-critique leading-relaxed">
+                  {submitError}
+                </p>
+              </div>
+            )}
 
             <button
               type="button"

@@ -15,6 +15,7 @@ import {
   Save,
   X,
   ImageOff,
+  Images,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { FAKE_USER } from '../data';
@@ -34,6 +35,12 @@ type UserProfile = {
   avatar_url: string | null;
 };
 
+type ProfilePhotoSet = {
+  id: string;
+  photo_count: number | null;
+  cover_photo_url: string | null;
+};
+
 type ProfilePhoto = {
   id: string;
   image_url: string;
@@ -42,6 +49,9 @@ type ProfilePhoto = {
   content_rating: string | null;
   review_count: number | null;
   created_at: string;
+  photo_set_id: string | null;
+  sort_order: number | null;
+  photo_sets: ProfilePhotoSet | ProfilePhotoSet[] | null;
 };
 
 type ProfileStats = {
@@ -64,6 +74,17 @@ function getRatingLabel(contentRating: string | null) {
   if (contentRating === 'Explicit') return 'NSFW';
   if (!contentRating) return 'Safe';
   return contentRating;
+}
+
+function getPhotoSet(photoSetData: ProfilePhoto['photo_sets']) {
+  if (!photoSetData) return null;
+  if (Array.isArray(photoSetData)) return photoSetData[0] || null;
+  return photoSetData;
+}
+
+function isPhotoSet(photo: ProfilePhoto) {
+  const photoSet = getPhotoSet(photo.photo_sets);
+  return Boolean(photo.photo_set_id && (photoSet?.photo_count || 0) > 1);
 }
 
 function getFallbackAvatar(seed: string | null | undefined) {
@@ -223,16 +244,25 @@ export default function Profile() {
         .from('photos')
         .select(
           `
-          id,
-          image_url,
-          watermarked_url,
-          caption,
-          content_rating,
-          review_count,
-          created_at
-        `
+    id,
+    image_url,
+    watermarked_url,
+    caption,
+    content_rating,
+    review_count,
+    created_at,
+    photo_set_id,
+    sort_order,
+    photo_sets (
+      id,
+      photo_count,
+      cover_photo_url
+    )
+  `
         )
         .eq('user_id', targetProfileId)
+        .or('is_hidden.is.null,is_hidden.eq.false')
+        .or('photo_set_id.is.null,sort_order.eq.0')
         .order('created_at', { ascending: false });
 
       if (photosError) throw photosError;
@@ -812,8 +842,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('frames')}
             className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'frames'
-                ? 'border-brand-accent text-brand-accent'
-                : 'border-transparent text-gray-500 hover:text-white'
+              ? 'border-brand-accent text-brand-accent'
+              : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
             <Grid size={15} />
@@ -824,8 +854,8 @@ export default function Profile() {
             type="button"
             onClick={() => setActiveTab('critiques')}
             className={`min-h-[54px] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'critiques'
-                ? 'border-brand-accent text-brand-accent'
-                : 'border-transparent text-gray-500 hover:text-white'
+              ? 'border-brand-accent text-brand-accent'
+              : 'border-transparent text-gray-500 hover:text-white'
               }`}
           >
             <History size={15} />
@@ -853,9 +883,14 @@ export default function Profile() {
           ) : profilePhotos.length > 0 ? (
             profilePhotos.map((photo) => {
               const isExplicit = photo.content_rating === 'Explicit';
+              const photoSet = getPhotoSet(photo.photo_sets);
+              const photoSetCount = photoSet?.photo_count || 1;
+              const belongsToPhotoSet = isPhotoSet(photo);
+
               const imageUrl =
                 photo.watermarked_url ||
                 photo.image_url ||
+                photoSet?.cover_photo_url ||
                 getFallbackPhoto(photo.id);
 
               return (
@@ -876,6 +911,29 @@ export default function Profile() {
                     }}
                   />
 
+                  {belongsToPhotoSet && (
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-brand-black/75 border border-white/10 px-2 py-1 backdrop-blur-md">
+                      <Images size={11} className="text-brand-accent" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-white">
+                        {photoSetCount}
+                      </span>
+                    </div>
+                  )}
+
+                  {!belongsToPhotoSet && (
+                    <div className="absolute top-2 right-2 z-10 rounded-full bg-brand-black/60 border border-white/10 px-2 py-1 backdrop-blur-md">
+                      <Camera size={11} className="text-white/70" />
+                    </div>
+                  )}
+
+                  {isExplicit && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                      <span className="rounded-full bg-brand-critique/90 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-white">
+                        NSFW
+                      </span>
+                    </div>
+                  )}
+
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                   <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -884,7 +942,9 @@ export default function Profile() {
                     </p>
 
                     <p className="text-[9px] font-bold uppercase line-clamp-1">
-                      {getRatingLabel(photo.content_rating)}
+                      {belongsToPhotoSet
+                        ? `Photo Set • ${photoSetCount}`
+                        : getRatingLabel(photo.content_rating)}
                     </p>
                   </div>
                 </Link>
