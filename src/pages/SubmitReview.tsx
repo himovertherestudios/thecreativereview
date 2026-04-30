@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
@@ -9,6 +9,7 @@ import {
   X,
   Loader2,
   AlertCircle,
+  Images,
 } from 'lucide-react';
 import { ContentRating, HonestyLevel } from '../types';
 import { supabase } from '../lib/supabase';
@@ -35,17 +36,19 @@ const CRITIQUE_CATEGORIES = [
   'Portfolio Ready',
 ];
 
+const MAX_PHOTO_SET_IMAGES = 10;
+
 function getFileExtension(file: File) {
   const nameParts = file.name.split('.');
-  return nameParts.length > 1 ? nameParts.pop()?.toLowerCase() : 'jpg';
+  return nameParts.length > 1 ? nameParts.pop()?.toLowerCase() || 'jpg' : 'jpg';
 }
 
 export default function SubmitReview() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [image, setImage] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState('');
   const [contentRating, setContentRating] = useState<ContentRating | ''>('');
   const [honestyLevel, setHonestyLevel] = useState<HonestyLevel | ''>('');
@@ -55,16 +58,22 @@ export default function SubmitReview() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  const hasImages = imageFiles.length > 0;
   const isNsfw = contentRating === 'Explicit';
 
   const canSubmit =
-    Boolean(image) &&
-    Boolean(imageFile) &&
+    hasImages &&
     Boolean(contentRating) &&
     Boolean(honestyLevel) &&
     selectedCategories.length > 0 &&
     confirmed &&
     !isSubmitting;
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewUrls]);
 
   const clearError = () => {
     if (submitError) setSubmitError('');
@@ -107,33 +116,45 @@ export default function SubmitReview() {
   };
 
   const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
+    const selectedFiles = Array.from(event.target.files || []);
 
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
-    if (!selectedFile.type.startsWith('image/')) {
-      setSubmitError('Please upload an image file.');
+    const onlyImageFiles = selectedFiles.filter((file) =>
+      file.type.startsWith('image/')
+    );
+
+    if (onlyImageFiles.length === 0) {
+      setSubmitError('Please upload image files only.');
       return;
     }
 
-    if (image && imageFile) {
-      URL.revokeObjectURL(image);
+    if (onlyImageFiles.length !== selectedFiles.length) {
+      setSubmitError('Some files were skipped because they were not images.');
+    } else {
+      clearError();
     }
 
-    const previewUrl = URL.createObjectURL(selectedFile);
+    if (onlyImageFiles.length > MAX_PHOTO_SET_IMAGES) {
+      setSubmitError(`Photo sets are limited to ${MAX_PHOTO_SET_IMAGES} images for beta.`);
+      return;
+    }
 
-    setImageFile(selectedFile);
-    setImage(previewUrl);
-    clearError();
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+
+    const nextPreviewUrls = onlyImageFiles.map((file) =>
+      URL.createObjectURL(file)
+    );
+
+    setImageFiles(onlyImageFiles);
+    setPreviewUrls(nextPreviewUrls);
   };
 
-  const removeImage = () => {
-    if (image && imageFile) {
-      URL.revokeObjectURL(image);
-    }
+  const removeAllImages = () => {
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
 
-    setImage(null);
-    setImageFile(null);
+    setPreviewUrls([]);
+    setImageFiles([]);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -142,8 +163,42 @@ export default function SubmitReview() {
     clearError();
   };
 
+  const removeSingleImage = (indexToRemove: number) => {
+    const urlToRemove = previewUrls[indexToRemove];
+
+    if (urlToRemove) {
+      URL.revokeObjectURL(urlToRemove);
+    }
+
+    const nextFiles = imageFiles.filter((_, index) => index !== indexToRemove);
+    const nextUrls = previewUrls.filter((_, index) => index !== indexToRemove);
+
+    setImageFiles(nextFiles);
+    setPreviewUrls(nextUrls);
+
+    if (nextFiles.length === 0 && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    clearError();
+  };
+
+  const getSubmitLabel = () => {
+    if (isSubmitting) {
+      return imageFiles.length > 1
+        ? `Uploading ${imageFiles.length} Images`
+        : 'Uploading Image';
+    }
+
+    if (imageFiles.length > 1) {
+      return `Submit ${imageFiles.length} Images`;
+    }
+
+    return 'Submit For Review';
+  };
+
   const handleSubmit = async () => {
-    if (!canSubmit || !imageFile) return;
+    if (!canSubmit || imageFiles.length === 0) return;
 
     setIsSubmitting(true);
     setSubmitError('');
@@ -160,48 +215,103 @@ export default function SubmitReview() {
         throw new Error('You must be logged in to submit a review request.');
       }
 
-      const fileExtension = getFileExtension(imageFile);
-      const filePath = `${user.id}/review-${Date.now()}.${fileExtension}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(filePath, imageFile, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: imageFile.type,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('photos')
-        .getPublicUrl(filePath);
-
-      const publicImageUrl = publicUrlData.publicUrl;
-
-      const { data: insertedPhoto, error: photoError } = await supabase
-        .from('photos')
+      const { data: createdSet, error: setError } = await supabase
+        .from('photo_sets')
         .insert({
           user_id: user.id,
-          image_url: publicImageUrl,
-          storage_path: filePath,
-          watermarked_url: publicImageUrl,
-          watermarked_storage_path: null,
-          caption: caption.trim(),
+          title: null,
+          caption: caption.trim() || null,
           content_rating: contentRating,
           honesty_level: honestyLevel,
           feedback_categories: selectedCategories,
           allow_anonymous: allowAnonymous,
-          is_starter_upload: false,
+          photo_count: imageFiles.length,
+          review_count: 0,
           is_hidden: false,
         })
         .select('id')
         .single();
 
-      if (photoError) throw photoError;
+      if (setError) throw setError;
 
-      await trackEvent('photo_uploaded', 'SubmitReview', {
-        photo_id: insertedPhoto.id,
+      if (!createdSet) {
+        throw new Error('Could not create the photo set.');
+      }
+
+      let coverPhotoUrl = '';
+      let coverPhotoId = '';
+
+      for (const [index, imageFile] of imageFiles.entries()) {
+        const fileExtension = getFileExtension(imageFile);
+        const uniqueFileName = `review-${Date.now()}-${index}-${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExtension}`;
+
+        const filePath = `${user.id}/${createdSet.id}/${uniqueFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(filePath, imageFile, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: imageFile.type,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('photos')
+          .getPublicUrl(filePath);
+
+        const publicImageUrl = publicUrlData.publicUrl;
+
+        const { data: insertedPhoto, error: photoError } = await supabase
+          .from('photos')
+          .insert({
+            user_id: user.id,
+            photo_set_id: createdSet.id,
+            sort_order: index,
+            image_url: publicImageUrl,
+            storage_path: filePath,
+            watermarked_url: publicImageUrl,
+            watermarked_storage_path: null,
+            caption: caption.trim() || null,
+            content_rating: contentRating,
+            honesty_level: honestyLevel,
+            feedback_categories: selectedCategories,
+            allow_anonymous: allowAnonymous,
+            is_starter_upload: false,
+            is_hidden: false,
+            review_count: 0,
+          })
+          .select('id, image_url')
+          .single();
+
+        if (photoError) throw photoError;
+
+        if (!insertedPhoto) {
+          throw new Error('One of the photos could not be saved.');
+        }
+
+        if (index === 0) {
+          coverPhotoUrl = publicImageUrl;
+          coverPhotoId = insertedPhoto.id;
+        }
+      }
+
+      const { error: updateSetError } = await supabase
+        .from('photo_sets')
+        .update({
+          cover_photo_url: coverPhotoUrl,
+        })
+        .eq('id', createdSet.id);
+
+      if (updateSetError) throw updateSetError;
+
+      await trackEvent('photo_set_uploaded', 'SubmitReview', {
+        photo_set_id: createdSet.id,
+        cover_photo_id: coverPhotoId,
+        photo_count: imageFiles.length,
         content_rating: contentRating,
         honesty_level: honestyLevel,
         category_count: selectedCategories.length,
@@ -234,8 +344,9 @@ export default function SubmitReview() {
         </h1>
 
         <p className="text-gray-400 font-medium text-sm md:text-base leading-relaxed">
-          Ready for the firing squad? Be precise about what you need help with.
-          The better the question, the better the critique.
+          Ready for the firing squad? Upload one image or a full photo set.
+          Be precise about what you need help with. The better the question,
+          the better the critique.
         </p>
       </header>
 
@@ -243,6 +354,7 @@ export default function SubmitReview() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         onChange={handleFileSelected}
         className="hidden"
       />
@@ -255,67 +367,111 @@ export default function SubmitReview() {
         }}
       >
         <div
-          onClick={() => !image && openFilePicker()}
-          className={`w-full max-w-full aspect-[4/5] sm:aspect-[4/3] rounded-3xl border-4 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden ${image
-            ? 'border-solid border-brand-accent'
-            : 'border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer'
+          onClick={() => !hasImages && openFilePicker()}
+          className={`w-full max-w-full rounded-3xl border-4 border-dashed transition-all overflow-hidden ${hasImages
+              ? 'border-solid border-brand-accent bg-brand-gray p-3 sm:p-4'
+              : 'aspect-[4/5] sm:aspect-[4/3] border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer flex flex-col items-center justify-center'
             }`}
         >
-          {image ? (
-            <div className="relative w-full h-full">
-              <img
-                src={image}
-                alt="New upload preview"
-                className={`w-full h-full object-cover ${isNsfw ? 'blur-xl scale-105' : ''
-                  }`}
-                draggable={false}
-                onContextMenu={(e) => e.preventDefault()}
-              />
-
-              {isNsfw && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-black/40">
-                  <EyeOff className="text-red-300 mb-3" size={34} />
-                  <p className="text-xs font-black uppercase tracking-[0.25em] text-red-200">
-                    NSFW Preview Hidden
-                  </p>
-                  <p className="text-[11px] text-gray-300 mt-2 max-w-xs">
-                    Explicit posts will appear blurred in the feed until clicked.
+          {hasImages ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Images size={18} className="text-brand-accent" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
+                    Photo Set Preview
                   </p>
                 </div>
-              )}
 
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="px-5 py-3 md:px-8 md:py-4 border-4 border-white/20 text-white/20 text-xl md:text-3xl font-black uppercase tracking-[0.5em] md:tracking-[1em] rotate-12">
-                  PROOF
-                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  {imageFiles.length}{' '}
+                  {imageFiles.length === 1 ? 'Image' : 'Images'}
+                </p>
               </div>
 
-              <div className="absolute bottom-4 left-4 px-3 py-2 rounded-full bg-black/60 border border-white/10 text-[10px] font-black uppercase tracking-widest text-white">
-                Protected Preview
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {previewUrls.map((url, index) => (
+                  <div
+                    key={url}
+                    className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-white/10 bg-brand-black"
+                  >
+                    <img
+                      src={url}
+                      alt={`Photo set preview ${index + 1}`}
+                      className={`w-full h-full object-cover ${isNsfw ? 'blur-xl scale-105' : ''
+                        }`}
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
+
+                    {isNsfw && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-black/40">
+                        <EyeOff className="text-red-300 mb-2" size={24} />
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-red-200">
+                          NSFW
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="px-3 py-2 border-2 border-white/20 text-white/20 text-sm font-black uppercase tracking-[0.35em] rotate-12">
+                        PROOF
+                      </div>
+                    </div>
+
+                    {index === 0 && (
+                      <div className="absolute left-2 top-2 px-2 py-1 rounded-full bg-brand-accent text-[9px] font-black uppercase tracking-widest text-brand-black">
+                        Cover
+                      </div>
+                    )}
+
+                    <div className="absolute right-2 top-2 px-2 py-1 rounded-full bg-black/70 border border-white/10 text-[9px] font-black uppercase tracking-widest text-white">
+                      {index + 1}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSingleImage(index);
+                      }}
+                      className="absolute right-2 bottom-2 p-2 bg-black/70 rounded-full text-white border border-white/10"
+                      aria-label={`Remove image ${index + 1}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openFilePicker();
-                }}
-                className="absolute top-4 left-4 px-4 py-3 bg-black/60 rounded-full text-white border border-white/10 text-[10px] font-black uppercase tracking-widest"
-              >
-                Change
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openFilePicker();
+                  }}
+                  className="flex-1 px-4 py-3 bg-black/40 rounded-2xl text-white border border-white/10 text-[10px] font-black uppercase tracking-widest"
+                >
+                  Change Set
+                </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeImage();
-                }}
-                className="absolute top-4 right-4 p-3 bg-black/60 rounded-full text-white border border-white/10"
-                aria-label="Remove image"
-              >
-                <X size={20} />
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAllImages();
+                  }}
+                  className="flex-1 px-4 py-3 bg-brand-critique/10 rounded-2xl text-brand-critique border border-brand-critique/20 text-[10px] font-black uppercase tracking-widest"
+                >
+                  Remove All
+                </button>
+              </div>
+
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
+                First image becomes the cover. Photo sets are limited to{' '}
+                {MAX_PHOTO_SET_IMAGES} images for beta.
+              </p>
             </div>
           ) : (
             <div className="text-center group px-6">
@@ -325,11 +481,11 @@ export default function SubmitReview() {
               />
 
               <p className="text-sm font-black uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors">
-                Tap to upload frame
+                Tap to upload frame or photo set
               </p>
 
               <p className="text-xs text-gray-600 mt-3 max-w-xs">
-                This opens your hard drive and uploads to Supabase Storage.
+                Select one image or multiple images. The first image becomes the cover.
               </p>
             </div>
           )}
@@ -374,8 +530,8 @@ export default function SubmitReview() {
 
                 <span
                   className={`w-5 h-5 rounded-full border flex items-center justify-center ${contentRating === rating
-                    ? 'bg-white text-black border-white'
-                    : 'border-current opacity-40'
+                      ? 'bg-white text-black border-white'
+                      : 'border-current opacity-40'
                     }`}
                 >
                   {contentRating === rating && <Check size={12} strokeWidth={4} />}
@@ -408,16 +564,16 @@ export default function SubmitReview() {
                     clearError();
                   }}
                   className={`w-full py-4 text-[11px] font-black uppercase border rounded-2xl transition-all text-left px-5 flex items-center justify-between ${isSelected
-                    ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                    : 'border-white/10 text-gray-300 hover:border-white/30'
+                      ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                      : 'border-white/10 text-gray-300 hover:border-white/30'
                     }`}
                 >
                   {level}
 
                   <span
                     className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected
-                      ? 'bg-brand-accent border-brand-accent text-brand-black'
-                      : 'border-white/20'
+                        ? 'bg-brand-accent border-brand-accent text-brand-black'
+                        : 'border-white/20'
                       }`}
                   >
                     {isSelected && <Check size={12} strokeWidth={4} />}
@@ -443,8 +599,8 @@ export default function SubmitReview() {
                   type="button"
                   onClick={() => toggleCategory(category)}
                   className={`px-4 py-3 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${isSelected
-                    ? 'bg-white text-brand-black border-white'
-                    : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
+                      ? 'bg-white text-brand-black border-white'
+                      : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
                     }`}
                 >
                   {category}
@@ -503,8 +659,8 @@ export default function SubmitReview() {
           >
             <span
               className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ${confirmed
-                ? 'bg-brand-accent border-brand-accent text-brand-black'
-                : 'border-white/20'
+                  ? 'bg-brand-accent border-brand-accent text-brand-black'
+                  : 'border-white/20'
                 }`}
             >
               {confirmed && <Check size={15} strokeWidth={4} />}
@@ -537,11 +693,11 @@ export default function SubmitReview() {
           {isSubmitting ? (
             <>
               <Loader2 size={20} className="animate-spin" />
-              Uploading
+              {getSubmitLabel()}
             </>
           ) : (
             <>
-              Submit For Review <ArrowRight size={20} />
+              {getSubmitLabel()} <ArrowRight size={20} />
             </>
           )}
         </button>
@@ -558,11 +714,11 @@ export default function SubmitReview() {
             {isSubmitting ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Uploading
+                {getSubmitLabel()}
               </>
             ) : (
               <>
-                Submit For Review <ArrowRight size={18} />
+                {getSubmitLabel()} <ArrowRight size={18} />
               </>
             )}
           </button>
