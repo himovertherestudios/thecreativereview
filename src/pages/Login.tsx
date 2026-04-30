@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
     ArrowLeft,
@@ -127,7 +127,7 @@ export default function Login() {
                             Welcome Back
                         </p>
 
-                        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">
+                        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-brand-white">
                             Log In
                         </h1>
 
@@ -158,7 +158,7 @@ export default function Login() {
                                     type="email"
                                     value={form.email}
                                     onChange={(e) => handleInputChange('email', e.target.value)}
-                                    className="w-full min-h-[56px] bg-brand-black border border-white/10 rounded-2xl p-4 pl-12 text-sm font-bold focus:border-brand-accent outline-none transition-all"
+                                    className="w-full min-h-[56px] bg-brand-black border border-white/10 rounded-2xl p-4 pl-12 text-sm font-bold text-brand-white focus:border-brand-accent outline-none transition-all"
                                     placeholder="JANE@EXAMPLE.COM"
                                     autoComplete="email"
                                 />
@@ -179,10 +179,8 @@ export default function Login() {
                                 <input
                                     type="password"
                                     value={form.password}
-                                    onChange={(e) =>
-                                        handleInputChange('password', e.target.value)
-                                    }
-                                    className="w-full min-h-[56px] bg-brand-black border border-white/10 rounded-2xl p-4 pl-12 text-sm font-bold focus:border-brand-accent outline-none transition-all"
+                                    onChange={(e) => handleInputChange('password', e.target.value)}
+                                    className="w-full min-h-[56px] bg-brand-black border border-white/10 rounded-2xl p-4 pl-12 text-sm font-bold text-brand-white focus:border-brand-accent outline-none transition-all"
                                     placeholder="YOUR PASSWORD"
                                     autoComplete="current-password"
                                 />
@@ -205,7 +203,7 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={!canLogin}
-                            className="w-full min-h-[58px] py-5 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs md:text-sm tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 flex items-center justify-center gap-3"
+                            className="w-full min-h-[58px] py-5 bg-brand-accent text-brand-black rounded-2xl font-black uppercase text-xs md:text-sm tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                         >
                             {isSubmitting ? (
                                 <>
@@ -219,13 +217,21 @@ export default function Login() {
                             )}
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={() => navigate('/invite')}
-                            className="w-full min-h-[48px] py-4 text-gray-500 hover:text-white text-xs font-black uppercase tracking-widest transition-colors"
-                        >
-                            Need access? Use or request an invite code
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <Link
+                                to="/invite"
+                                className="min-h-[48px] py-4 px-4 rounded-2xl border border-white/10 bg-white/[0.03] text-gray-400 hover:text-white hover:border-white/20 text-center text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center"
+                            >
+                                I Have A Code
+                            </Link>
+
+                            <Link
+                                to="/request-invite"
+                                className="min-h-[48px] py-4 px-4 rounded-2xl border border-brand-accent/30 bg-brand-accent/10 text-brand-accent hover:bg-brand-accent hover:text-brand-black text-center text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center"
+                            >
+                                Request Invite
+                            </Link>
+                        </div>
                     </form>
                 </motion.div>
             </div>

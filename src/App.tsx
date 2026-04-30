@@ -47,6 +47,7 @@ import AnalyticsAdmin from './pages/AnalyticsAdmin';
 import HotSeat from './pages/HotSeat';
 import Activity from './pages/Activity';
 import CultureOnboarding from './pages/CultureOnboarding';
+import RequestInvite from './pages/RequestInvite';
 
 type AppNavLinkProps = {
   to: string;
@@ -527,6 +528,8 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/request-invite" element={<RequestInvite />} />
 
         <Route
           path="/onboarding"
