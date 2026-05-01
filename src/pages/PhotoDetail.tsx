@@ -751,23 +751,7 @@ export default function PhotoDetail() {
               onContextMenu={(event) => event.preventDefault()}
             />
 
-            {photo.isPhotoSet && (
-              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/75 border border-white/15 backdrop-blur-md">
-                <Images size={13} className="text-brand-accent" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-white">
-                  Photo Set • {selectedSetImageIndex + 1}/{photoSetImages.length || photo.photoSetCount}
-                </span>
-              </div>
-            )}
 
-            {!photo.isPhotoSet && (
-              <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/60 border border-white/10 backdrop-blur-md">
-                <Camera size={13} className="text-white/70" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/80">
-                  Single Frame
-                </span>
-              </div>
-            )}
 
             {shouldBlur && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[24px] text-center p-6">
@@ -799,16 +783,16 @@ export default function PhotoDetail() {
                 <div className="flex items-center gap-2">
                   <Images size={16} className="text-brand-accent" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
-                    Full Photo Set
+                    Swipe The Set
                   </p>
                 </div>
 
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  {photoSetImages.length} Images
+                  Reviews attach to the cover
                 </p>
               </div>
 
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1">
                 {photoSetImages.map((setImage, index) => {
                   const isSelected = selectedSetImageIndex === index;
 
@@ -817,37 +801,40 @@ export default function PhotoDetail() {
                       key={setImage.id}
                       type="button"
                       onClick={() => setSelectedSetImageIndex(index)}
-                      className={`relative aspect-[4/5] overflow-hidden rounded-xl border transition-all ${isSelected
-                        ? 'border-brand-accent ring-2 ring-brand-accent/30'
-                        : 'border-white/10 opacity-60 hover:opacity-100 hover:border-white/30'
+                      className={`relative min-w-[82%] sm:min-w-[48%] lg:min-w-[38%] aspect-[4/5] overflow-hidden rounded-3xl border snap-center transition-all ${isSelected
+                          ? 'border-brand-accent ring-2 ring-brand-accent/20'
+                          : 'border-white/10 opacity-80 hover:opacity-100 hover:border-white/30'
                         }`}
                     >
                       <img
                         src={setImage.imageUrl}
-                        alt={`Photo set image ${index + 1}`}
+                        alt={setImage.caption || 'Photo set image'}
                         className={`h-full w-full object-cover ${shouldBlur ? 'blur-md scale-105 grayscale' : ''
                           }`}
                         draggable={false}
                         onContextMenu={(event) => event.preventDefault()}
                       />
 
-                      <div className="absolute right-1.5 top-1.5 rounded-full bg-black/75 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">
-                        {index + 1}
-                      </div>
-
-                      {index === 0 && (
-                        <div className="absolute left-1.5 bottom-1.5 rounded-full bg-brand-accent px-1.5 py-0.5 text-[7px] font-black uppercase tracking-widest text-brand-black">
-                          Cover
-                        </div>
-                      )}
+                      <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                   );
                 })}
               </div>
 
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
-                Tap a thumbnail to view another frame from this set. Reviews currently attach to the cover post.
-              </p>
+              <div className="flex items-center justify-center gap-2">
+                {photoSetImages.map((setImage, index) => (
+                  <button
+                    key={setImage.id}
+                    type="button"
+                    onClick={() => setSelectedSetImageIndex(index)}
+                    className={`h-1.5 rounded-full transition-all ${selectedSetImageIndex === index
+                        ? 'w-6 bg-brand-accent'
+                        : 'w-1.5 bg-white/20'
+                      }`}
+                    aria-label={`View image ${index + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
@@ -856,12 +843,6 @@ export default function PhotoDetail() {
               <span className="px-2 py-1 rounded-full bg-white/5 text-[8px] font-black uppercase tracking-widest text-gray-400 border border-white/10">
                 {photo.contentRating === 'Explicit' ? 'NSFW' : photo.contentRating}
               </span>
-
-              {photo.isPhotoSet && (
-                <span className="px-2 py-1 rounded-full bg-brand-accent/10 text-[8px] font-black uppercase tracking-widest text-brand-accent border border-brand-accent/20">
-                  {photo.photoSetCount} Images
-                </span>
-              )}
 
               <span className="px-2 py-1 rounded-full bg-white/5 text-[8px] font-black uppercase tracking-widest text-gray-400 border border-white/10">
                 {photo.honestyLevel}

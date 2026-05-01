@@ -42,12 +42,14 @@ import Supporter from './pages/Supporter';
 import Login from './pages/Login';
 import ChallengeSuggestion from './pages/ChallengeSuggestion';
 import ChallengeAdmin from './pages/ChallengeAdmin';
+import ChallengeDetail from './pages/ChallengeDetail';
 import TipsArchive from './pages/TipsArchive';
 import AnalyticsAdmin from './pages/AnalyticsAdmin';
 import HotSeat from './pages/HotSeat';
 import Activity from './pages/Activity';
 import CultureOnboarding from './pages/CultureOnboarding';
 import RequestInvite from './pages/RequestInvite';
+
 
 type AppNavLinkProps = {
   to: string;
@@ -617,6 +619,15 @@ function AppRoutes() {
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/challenge/:challengeId"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <ChallengeDetail />
             </ProtectedRoute>
           }
         />

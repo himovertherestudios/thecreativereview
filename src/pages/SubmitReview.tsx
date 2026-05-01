@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Upload,
   Check,
@@ -45,6 +45,8 @@ function getFileExtension(file: File) {
 
 export default function SubmitReview() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const challengeId = searchParams.get('challengeId');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -219,6 +221,7 @@ export default function SubmitReview() {
         .from('photo_sets')
         .insert({
           user_id: user.id,
+          challenge_id: challengeId,
           title: null,
           caption: caption.trim() || null,
           content_rating: contentRating,
@@ -270,6 +273,7 @@ export default function SubmitReview() {
           .insert({
             user_id: user.id,
             photo_set_id: createdSet.id,
+            challenge_id: challengeId,
             sort_order: index,
             image_url: publicImageUrl,
             storage_path: filePath,
@@ -311,6 +315,7 @@ export default function SubmitReview() {
       await trackEvent('photo_set_uploaded', 'SubmitReview', {
         photo_set_id: createdSet.id,
         cover_photo_id: coverPhotoId,
+        challenge_id: challengeId,
         photo_count: imageFiles.length,
         content_rating: contentRating,
         honesty_level: honestyLevel,
@@ -369,8 +374,8 @@ export default function SubmitReview() {
         <div
           onClick={() => !hasImages && openFilePicker()}
           className={`w-full max-w-full rounded-3xl border-4 border-dashed transition-all overflow-hidden ${hasImages
-              ? 'border-solid border-brand-accent bg-brand-gray p-3 sm:p-4'
-              : 'aspect-[4/5] sm:aspect-[4/3] border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer flex flex-col items-center justify-center'
+            ? 'border-solid border-brand-accent bg-brand-gray p-3 sm:p-4'
+            : 'aspect-[4/5] sm:aspect-[4/3] border-white/10 bg-brand-gray hover:bg-brand-accent/5 cursor-pointer flex flex-col items-center justify-center'
             }`}
         >
           {hasImages ? (
@@ -530,8 +535,8 @@ export default function SubmitReview() {
 
                 <span
                   className={`w-5 h-5 rounded-full border flex items-center justify-center ${contentRating === rating
-                      ? 'bg-white text-black border-white'
-                      : 'border-current opacity-40'
+                    ? 'bg-white text-black border-white'
+                    : 'border-current opacity-40'
                     }`}
                 >
                   {contentRating === rating && <Check size={12} strokeWidth={4} />}
@@ -564,16 +569,16 @@ export default function SubmitReview() {
                     clearError();
                   }}
                   className={`w-full py-4 text-[11px] font-black uppercase border rounded-2xl transition-all text-left px-5 flex items-center justify-between ${isSelected
-                      ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                      : 'border-white/10 text-gray-300 hover:border-white/30'
+                    ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                    : 'border-white/10 text-gray-300 hover:border-white/30'
                     }`}
                 >
                   {level}
 
                   <span
                     className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected
-                        ? 'bg-brand-accent border-brand-accent text-brand-black'
-                        : 'border-white/20'
+                      ? 'bg-brand-accent border-brand-accent text-brand-black'
+                      : 'border-white/20'
                       }`}
                   >
                     {isSelected && <Check size={12} strokeWidth={4} />}
@@ -599,8 +604,8 @@ export default function SubmitReview() {
                   type="button"
                   onClick={() => toggleCategory(category)}
                   className={`px-4 py-3 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${isSelected
-                      ? 'bg-white text-brand-black border-white'
-                      : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
+                    ? 'bg-white text-brand-black border-white'
+                    : 'border-white/10 text-gray-400 hover:border-brand-accent hover:text-brand-accent'
                     }`}
                 >
                   {category}
@@ -659,8 +664,8 @@ export default function SubmitReview() {
           >
             <span
               className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ${confirmed
-                  ? 'bg-brand-accent border-brand-accent text-brand-black'
-                  : 'border-white/20'
+                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                : 'border-white/20'
                 }`}
             >
               {confirmed && <Check size={15} strokeWidth={4} />}

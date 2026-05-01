@@ -29,6 +29,8 @@ type DailyTip = {
   content: string;
   category: string | null;
   is_anonymous: boolean;
+  source?: string | null;
+  upvotes_count?: number | null;
   created_at: string;
 };
 
@@ -480,7 +482,7 @@ export default function Dashboard() {
     const loadDailyTip = async () => {
       const { data, error } = await supabase
         .from('tips')
-        .select('id, content, category, is_anonymous, created_at')
+        .select('id, content, category, is_anonymous, source, upvotes_count, created_at')
         .eq('is_approved', true)
         .order('created_at', { ascending: true })
         .limit(100);
@@ -491,7 +493,10 @@ export default function Dashboard() {
         return;
       }
 
-      const selectedTip = pickDailyTip(data as DailyTip[]);
+      const loadedTips = data as DailyTip[];
+      const aiOrAdminTips = loadedTips.filter((tip) => tip.source !== 'user');
+      const tipPool = aiOrAdminTips.length > 0 ? aiOrAdminTips : loadedTips;
+      const selectedTip = pickDailyTip(tipPool);
 
       setDailyTip(selectedTip?.content || FALLBACK_TIP);
       setDailyTipCategory(selectedTip?.category || 'Shooting');
@@ -556,7 +561,7 @@ export default function Dashboard() {
       button={
         <div className="grid gap-3">
           <Link
-            to="/submit"
+            to={monthlyChallenge ? `/challenge/${monthlyChallenge.id}` : '/submit'}
             className="min-h-[46px] px-4 py-3 bg-white text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-accent transition-all"
           >
             Take the challenge <ArrowRight size={14} />

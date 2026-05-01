@@ -8,7 +8,6 @@ import {
   History,
   ArrowRight,
   Camera,
-  ExternalLink,
   Globe,
   Loader2,
   Upload,
@@ -157,6 +156,7 @@ export default function Profile() {
     FAKE_USER.bio ||
     'No bio yet. Add a short intro so other creatives know who you are.';
   const website = profile?.website || FAKE_USER.website || '';
+  const websiteUrl = website ? normalizeWebsite(website) : '';
   const cleanUsername = username.replace('@', '').trim();
   const instagramUrl = cleanUsername
     ? `https://www.instagram.com/${cleanUsername}`
@@ -482,7 +482,7 @@ export default function Profile() {
   return (
     <div className="space-y-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-20 overflow-x-hidden">
       <section className="bg-brand-black border border-white/10 rounded-3xl p-5 md:p-6">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6 text-center md:text-left">
+        <div className="flex items-center gap-5 md:gap-8">
           <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-white/20 overflow-hidden flex-shrink-0 bg-brand-gray shadow-lg">
             <img
               src={avatarUrl}
@@ -505,13 +505,13 @@ export default function Profile() {
             )}
           </div>
 
-          <div className="flex-1 w-full">
-            <div className="grid grid-cols-3 gap-2 md:gap-4 text-center mt-4">
+          <div className="flex-1">
+            <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <p className="text-xl md:text-3xl font-black text-white">
                   {stats.framesUploaded}
                 </p>
-                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
+                <p className="text-[8px] md:text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
                   Frames
                 </p>
               </div>
@@ -520,7 +520,7 @@ export default function Profile() {
                 <p className="text-xl md:text-3xl font-black text-white">
                   {stats.reviewsReceived}
                 </p>
-                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
+                <p className="text-[8px] md:text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
                   Received
                 </p>
               </div>
@@ -529,7 +529,7 @@ export default function Profile() {
                 <p className="text-xl md:text-3xl font-black text-white">
                   {stats.reviewsGiven}
                 </p>
-                <p className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">
+                <p className="text-[8px] md:text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
                   Given
                 </p>
               </div>
@@ -537,13 +537,13 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 text-left">
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
               {isLoadingProfile ? 'Loading...' : displayName}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-2 mt-2 justify-center md:justify-start">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent">
                 <Briefcase size={13} />
                 {role}
@@ -558,35 +558,44 @@ export default function Profile() {
             </div>
           </div>
 
-          <p className="text-sm text-gray-300 leading-relaxed max-w-xl mx-auto md:mx-0">
+          <p className="text-sm text-gray-300 leading-relaxed max-w-xl">
             {bio}
           </p>
 
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {cleanUsername && (
               <a
                 href={instagramUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-accent hover:text-white transition-colors"
+                className="min-h-[42px] px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white hover:border-brand-accent/40 transition-all"
               >
-                <Instagram size={13} />
+                <Instagram size={14} />
                 @{cleanUsername}
-                <ExternalLink size={11} />
               </a>
             )}
 
-            {website && (
+            {websiteUrl && (
               <a
-                href={website}
+                href={websiteUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-brand-accent transition-colors"
+                className="min-h-[42px] px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white hover:border-brand-accent/40 transition-all"
               >
-                <Globe size={13} />
+                <Globe size={14} />
                 Website
-                <ExternalLink size={11} />
               </a>
+            )}
+
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setIsEditingProfile((current) => !current)}
+                className="min-h-[42px] px-4 rounded-2xl bg-brand-accent text-brand-black flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+              >
+                {isEditingProfile ? <X size={14} /> : <Save size={14} />}
+                {isEditingProfile ? 'Close Edit' : 'Edit Profile'}
+              </button>
             )}
           </div>
 
@@ -594,23 +603,6 @@ export default function Profile() {
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
               {avatarMessage || profileMessage}
             </p>
-          )}
-
-          {isOwnProfile && (
-            <div className="grid grid-cols-1 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditingProfile((current) => !current);
-                  syncEditForm(profile);
-                  setProfileMessage('');
-                  setAvatarMessage('');
-                }}
-                className="min-h-[46px] rounded-xl bg-brand-accent text-brand-black font-black uppercase text-[10px] tracking-widest flex items-center justify-center shadow-md hover:scale-[1.02] transition-all"
-              >
-                Edit Profile
-              </button>
-            </div>
           )}
         </div>
       </section>
@@ -912,17 +904,8 @@ export default function Profile() {
                   />
 
                   {belongsToPhotoSet && (
-                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-brand-black/75 border border-white/10 px-2 py-1 backdrop-blur-md">
-                      <Images size={11} className="text-brand-accent" />
-                      <span className="text-[8px] font-black uppercase tracking-widest text-white">
-                        {photoSetCount}
-                      </span>
-                    </div>
-                  )}
-
-                  {!belongsToPhotoSet && (
-                    <div className="absolute top-2 right-2 z-10 rounded-full bg-brand-black/60 border border-white/10 px-2 py-1 backdrop-blur-md">
-                      <Camera size={11} className="text-white/70" />
+                    <div className="absolute top-2 right-2 z-10 rounded-full bg-brand-black/65 border border-white/10 p-1.5 backdrop-blur-md">
+                      <Images size={12} className="text-white/80" />
                     </div>
                   )}
 
@@ -942,9 +925,7 @@ export default function Profile() {
                     </p>
 
                     <p className="text-[9px] font-bold uppercase line-clamp-1">
-                      {belongsToPhotoSet
-                        ? `Photo Set • ${photoSetCount}`
-                        : getRatingLabel(photo.content_rating)}
+                      {getRatingLabel(photo.content_rating)}
                     </p>
                   </div>
                 </Link>

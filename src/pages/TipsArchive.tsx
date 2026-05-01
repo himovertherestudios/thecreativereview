@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, BookOpen, Filter, Loader2, Sparkles } from 'lucide-react';
+import {
+    ArrowLeft,
+    BookOpen,
+    Filter,
+    Heart,
+    Loader2,
+    Send,
+    Sparkles,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -12,6 +20,9 @@ type Tip = {
     category: string | null;
     is_anonymous: boolean;
     is_approved: boolean;
+    source: string | null;
+    submitted_by: string | null;
+    upvotes_count: number | null;
     created_at: string;
 };
 
@@ -19,6 +30,13 @@ const BETA_TIP_LAUNCH_DATE = new Date('2026-04-27T00:00:00');
 
 const CATEGORIES: TipCategory[] = [
     'All',
+    'Shooting',
+    'Posing',
+    'Retouching',
+    'Business',
+];
+
+const SUBMIT_CATEGORIES: Exclude<TipCategory, 'All'>[] = [
     'Shooting',
     'Posing',
     'Retouching',
@@ -72,34 +90,69 @@ function formatTipDate(index: number) {
 
 export default function TipsArchive() {
     const [tips, setTips] = useState<Tip[]>([]);
+    const [likedTipIds, setLikedTipIds] = useState<string[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<TipCategory>('All');
     const [isLoading, setIsLoading] = useState(true);
     const [pageError, setPageError] = useState('');
 
-    useEffect(() => {
-        const loadTips = async () => {
-            setIsLoading(true);
-            setPageError('');
+    const [newTip, setNewTip] = useState('');
+    const [newTipCategory, setNewTipCategory] =
+        useState<Exclude<TipCategory, 'All'>>('Shooting');
+    const [isAnonymous, setIsAnonymous] = useState(false);
+    const [isSubmittingTip, setIsSubmittingTip] = useState(false);
+    const [submitMessage, setSubmitMessage] = useState('');
 
-            const { data, error } = await supabase
-                .from('tips')
-                .select('id, content, category, is_anonymous, is_approved, created_at')
-                .eq('is_approved', true)
-                .order('created_at', { ascending: true })
-                .limit(100);
+    const loadTips = async () => {
+        setIsLoading(true);
+        setPageError('');
 
-            if (error) {
-                setPageError(error.message);
-                setTips([]);
-                setIsLoading(false);
-                return;
-            }
+        const { data, error } = await supabase
+            .from('tips')
+            .select(
+                'id, content, category, is_anonymous, is_approved, source, submitted_by, upvotes_count, created_at'
+            )
+            .eq('is_approved', true)
+            .order('created_at', { ascending: true })
+            .limit(100);
 
-            setTips((data || []) as Tip[]);
+        if (error) {
+            setPageError(error.message);
+            setTips([]);
             setIsLoading(false);
-        };
+            return;
+        }
 
+        setTips((data || []) as Tip[]);
+        setIsLoading(false);
+    };
+
+    const loadLikedTips = async () => {
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+            setLikedTipIds([]);
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('tip_upvotes')
+            .select('tip_id')
+            .eq('user_id', user.id);
+
+        if (error) {
+            console.warn('Could not load liked tips:', error.message);
+            setLikedTipIds([]);
+            return;
+        }
+
+        setLikedTipIds((data || []).map((item) => item.tip_id));
+    };
+
+    useEffect(() => {
         loadTips();
+        loadLikedTips();
     }, []);
 
     const currentDayIndex = getCurrentTipDayIndex(tips.length);
@@ -114,6 +167,133 @@ export default function TipsArchive() {
         return unlockedTips.filter((tip) => tip.category === selectedCategory);
     }, [unlockedTips, selectedCategory]);
 
+    const handleSubmitTip = async () => {
+        const cleanTip = newTip.trim();
+
+        if (!cleanTip) {
+            setSubmitMessage('Add a tip before submitting.');
+            return;
+        }
+
+        if (cleanTip.length < 12) {
+            setSubmitMessage('Make the tip a little more helpful before submitting.');
+            return;
+        }
+
+        setIsSubmittingTip(true);
+        setSubmitMessage('');
+
+        try {
+            const {
+                data: { user },
+                error: userError,
+            } = await supabase.auth.getUser();
+
+            if (userError) throw userError;
+
+            if (!user) {
+                throw new Error('You must be logged in to submit a tip.');
+            }
+
+            const { error } = await supabase.from('tips').insert({
+                content: cleanTip,
+                category: newTipCategory,
+                is_anonymous: isAnonymous,
+                is_approved: false,
+                source: 'user',
+                submitted_by: user.id,
+                upvotes_count: 0,
+            });
+
+            if (error) throw error;
+
+            setNewTip('');
+            setNewTipCategory('Shooting');
+            setIsAnonymous(false);
+            setSubmitMessage('Tip submitted. It will appear after approval.');
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Something went wrong submitting your tip.';
+
+            setSubmitMessage(message);
+        } finally {
+            setIsSubmittingTip(false);
+        }
+    };
+
+    const handleToggleLike = async (tip: Tip) => {
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+            setPageError('You must be logged in to like a tip.');
+            return;
+        }
+
+        const alreadyLiked = likedTipIds.includes(tip.id);
+
+        setLikedTipIds((current) =>
+            alreadyLiked ? current.filter((id) => id !== tip.id) : [...current, tip.id]
+        );
+
+        setTips((currentTips) =>
+            currentTips.map((item) => {
+                if (item.id !== tip.id) return item;
+
+                const currentCount = item.upvotes_count || 0;
+
+                return {
+                    ...item,
+                    upvotes_count: alreadyLiked
+                        ? Math.max(0, currentCount - 1)
+                        : currentCount + 1,
+                };
+            })
+        );
+
+        if (alreadyLiked) {
+            const { error } = await supabase
+                .from('tip_upvotes')
+                .delete()
+                .eq('tip_id', tip.id)
+                .eq('user_id', user.id);
+
+            if (error) {
+                console.warn('Could not unlike tip:', error.message);
+                await loadTips();
+                await loadLikedTips();
+            }
+
+            return;
+        }
+
+        const { error: upvoteError } = await supabase.from('tip_upvotes').insert({
+            tip_id: tip.id,
+            user_id: user.id,
+        });
+
+        if (upvoteError) {
+            console.warn('Could not like tip:', upvoteError.message);
+            await loadTips();
+            await loadLikedTips();
+            return;
+        }
+
+        const { error: countError } = await supabase
+            .from('tips')
+            .update({
+                upvotes_count: (tip.upvotes_count || 0) + 1,
+            })
+            .eq('id', tip.id);
+
+        if (countError) {
+            console.warn('Could not update tip count:', countError.message);
+        }
+    };
+
     return (
         <div className="pb-10 space-y-6">
             <div className="sticky top-16 md:top-0 z-30 -mx-4 px-4 py-4 bg-brand-black/95 backdrop-blur-xl border-b border-white/10">
@@ -127,7 +307,7 @@ export default function TipsArchive() {
                     </Link>
 
                     <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">
-                        More tips unlocked daily
+                        Tips + community gems
                     </p>
                 </div>
             </div>
@@ -149,10 +329,82 @@ export default function TipsArchive() {
                     </h1>
 
                     <p className="text-sm md:text-base text-gray-400 font-medium leading-relaxed mt-3 max-w-2xl">
-                        More tips unlocked daily. Revisit shooting, posing, retouching, and
-                        photography business advice from the beta.
+                        AI and admin tips keep the dashboard active while the beta fills up.
+                        Beta users can submit tips, like them, and help surface the strongest gems.
                     </p>
                 </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent mb-2">
+                        Submit A Tip
+                    </p>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                        Drop a useful shooting, posing, retouching, or business tip for the community.
+                        Approved tips will show in the archive.
+                    </p>
+                </div>
+
+                <textarea
+                    value={newTip}
+                    onChange={(event) => setNewTip(event.target.value)}
+                    placeholder="Example: Before asking for critique, name the exact thing you want feedback on — lighting, pose, edit, crop, or story."
+                    rows={4}
+                    className="w-full rounded-2xl bg-brand-black border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-brand-accent resize-none"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                    <select
+                        value={newTipCategory}
+                        onChange={(event) =>
+                            setNewTipCategory(event.target.value as Exclude<TipCategory, 'All'>)
+                        }
+                        className="min-h-[46px] rounded-2xl bg-brand-black border border-white/10 px-4 text-sm text-white outline-none focus:border-brand-accent"
+                    >
+                        {SUBMIT_CATEGORIES.map((category) => (
+                            <option key={category} value={category}>
+                                {category}
+                            </option>
+                        ))}
+                    </select>
+
+                    <button
+                        type="button"
+                        onClick={() => setIsAnonymous((current) => !current)}
+                        className={`min-h-[46px] px-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${isAnonymous
+                                ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                : 'bg-brand-black border-white/10 text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        {isAnonymous ? 'Anonymous On' : 'Post With Name'}
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleSubmitTip}
+                    disabled={isSubmittingTip}
+                    className="min-h-[50px] w-full rounded-2xl bg-brand-accent text-brand-black text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all disabled:opacity-60"
+                >
+                    {isSubmittingTip ? (
+                        <>
+                            <Loader2 size={15} className="animate-spin" />
+                            Submitting
+                        </>
+                    ) : (
+                        <>
+                            <Send size={15} />
+                            Submit Tip
+                        </>
+                    )}
+                </button>
+
+                {submitMessage && (
+                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent leading-relaxed">
+                        {submitMessage}
+                    </p>
+                )}
             </section>
 
             <section className="space-y-3">
@@ -222,6 +474,7 @@ export default function TipsArchive() {
                     {filteredTips.map((tip) => {
                         const originalIndex = tips.findIndex((item) => item.id === tip.id);
                         const displayDate = formatTipDate(originalIndex);
+                        const isLiked = likedTipIds.includes(tip.id);
 
                         return (
                             <motion.article
@@ -239,7 +492,7 @@ export default function TipsArchive() {
                                         </span>
 
                                         <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                            {displayDate}
+                                            {tip.source === 'user' ? 'Community Tip' : displayDate}
                                         </span>
                                     </div>
 
@@ -247,9 +500,23 @@ export default function TipsArchive() {
                                         {tip.content}
                                     </p>
 
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-                                        {displayDate}
-                                    </p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
+                                            {tip.source === 'user' ? 'Submitted by beta community' : displayDate}
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleLike(tip)}
+                                            className={`min-h-[38px] px-3 rounded-full border flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${isLiked
+                                                    ? 'bg-brand-accent border-brand-accent text-brand-black'
+                                                    : 'bg-brand-black border-white/10 text-gray-400 hover:text-white'
+                                                }`}
+                                        >
+                                            <Heart size={14} className={isLiked ? 'fill-current' : ''} />
+                                            {tip.upvotes_count || 0}
+                                        </button>
+                                    </div>
                                 </div>
                             </motion.article>
                         );
@@ -259,7 +526,7 @@ export default function TipsArchive() {
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-center">
                 <p className="text-[10px] font-black uppercase tracking-widest leading-relaxed text-gray-500">
-                    More tips unlocked daily
+                    More tips unlocked daily. Community tips appear after approval.
                 </p>
             </div>
         </div>

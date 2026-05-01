@@ -547,23 +547,7 @@ export default function ReviewFeed() {
                         <FeedImage request={request} shouldBlur={shouldBlur} />
                       )}
 
-                      {request.isPhotoSet && (
-                        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/75 border border-white/15 backdrop-blur-md">
-                          <Layers size={13} className="text-brand-accent" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-white">
-                            Photo Set • {request.photoSetCount}
-                          </span>
-                        </div>
-                      )}
 
-                      {!request.isPhotoSet && (
-                        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full bg-brand-black/60 border border-white/10 backdrop-blur-md">
-                          <Camera size={13} className="text-white/70" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-white/80">
-                            Single Frame
-                          </span>
-                        </div>
-                      )}
                     </div>
 
                     <div className="p-5 flex flex-col gap-4">
@@ -579,11 +563,7 @@ export default function ReviewFeed() {
                               : request.contentRating}
                           </span>
 
-                          {request.isPhotoSet && (
-                            <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-brand-accent/10 text-brand-accent border border-brand-accent/20">
-                              {request.photoSetCount} Images
-                            </span>
-                          )}
+
                         </div>
 
                         <span className="flex items-center gap-1 px-3 py-2 bg-brand-accent text-brand-black rounded-full">
