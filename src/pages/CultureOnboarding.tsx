@@ -8,6 +8,7 @@ import {
     Flame,
     MessageSquare,
     ShieldCheck,
+    Smartphone,
     Sparkles,
     Users,
 } from 'lucide-react';
@@ -50,6 +51,12 @@ const STEPS: OnboardingStep[] = [
         title: 'Help shape what this becomes.',
         body: 'You are early. Test the app, upload work, leave critiques, use The Corner, and tell us what feels broken, confusing, or powerful.',
         icon: Flame,
+    },
+    {
+        eyebrow: 'App Mode',
+        title: 'Make it feel like an app.',
+        body: 'The Creative Review works best from your phone. Add it to your home screen so it opens like an app instead of a regular browser tab.',
+        icon: Smartphone,
     },
 ];
 
@@ -128,10 +135,10 @@ export default function CultureOnboarding() {
                                 type="button"
                                 onClick={() => setActiveStep(index)}
                                 className={`h-2.5 rounded-full transition-all ${index === activeStep
-                                        ? 'w-8 bg-brand-accent'
-                                        : index < activeStep
-                                            ? 'w-2.5 bg-white'
-                                            : 'w-2.5 bg-white/20'
+                                    ? 'w-8 bg-brand-accent'
+                                    : index < activeStep
+                                        ? 'w-2.5 bg-white'
+                                        : 'w-2.5 bg-white/20'
                                     }`}
                                 aria-label={`Go to onboarding step ${index + 1}`}
                             />
@@ -201,6 +208,50 @@ export default function CultureOnboarding() {
                                         better feedback, and building a creative space that actually
                                         helps people improve.
                                     </p>
+                                </div>
+                            )}
+
+                            {activeStep === 5 && (
+                                <div className="mt-8 grid gap-3">
+                                    <div className="rounded-3xl border border-brand-accent/20 bg-brand-accent/10 p-5">
+                                        <div className="mb-3 flex items-center gap-2 text-brand-accent">
+                                            <Smartphone size={18} />
+                                            <p className="text-[10px] font-black uppercase tracking-widest">
+                                                Add To Home Screen
+                                            </p>
+                                        </div>
+
+                                        <p className="text-sm font-medium leading-relaxed text-gray-300">
+                                            This lets The Creative Review open from your phone like a real app.
+                                            No App Store needed for beta.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-white">
+                                                iPhone / Safari
+                                            </p>
+
+                                            <ol className="space-y-2 text-sm font-medium leading-relaxed text-gray-400">
+                                                <li>1. Tap the share button.</li>
+                                                <li>2. Choose “Add to Home Screen.”</li>
+                                                <li>3. Tap “Add.”</li>
+                                            </ol>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-white">
+                                                Android / Chrome
+                                            </p>
+
+                                            <ol className="space-y-2 text-sm font-medium leading-relaxed text-gray-400">
+                                                <li>1. Tap the three-dot menu.</li>
+                                                <li>2. Choose “Add to Home screen” or “Install app.”</li>
+                                                <li>3. Tap “Install” or “Add.”</li>
+                                            </ol>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </motion.div>

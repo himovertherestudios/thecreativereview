@@ -725,16 +725,14 @@ export default function Dashboard() {
 
   return (
     <div className="-mt-3 md:-mt-5 space-y-4 md:space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8 overflow-x-hidden">
-      <div className="md:hidden space-y-4">
-        <div className="-mx-4 px-4 overflow-x-auto snap-x snap-mandatory flex gap-4 pb-5 scroll-smooth overscroll-x-contain no-scrollbar touch-pan-x">
-          <SwipeCard>{tipCard}</SwipeCard>
+      <div className="md:hidden grid grid-cols-1 gap-4 overflow-x-hidden">
+        <Card>{tipCard}</Card>
 
-          <SwipeCard>{challengeCard}</SwipeCard>
+        <Card>{challengeCard}</Card>
 
-          <SwipeCard>{ventCard}</SwipeCard>
+        <Card>{ventCard}</Card>
 
-          <SwipeCard>{hotSeatCard}</SwipeCard>
-        </div>
+        <Card>{hotSeatCard}</Card>
       </div>
 
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
