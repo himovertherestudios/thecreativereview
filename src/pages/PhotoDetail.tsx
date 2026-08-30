@@ -624,20 +624,14 @@ export default function PhotoDetail() {
           : current
       );
 
-      await supabase
-        .from('photos')
-        .update({
-          review_count: nextReviewCount,
-        })
-        .eq('id', photo.id);
+      await supabase.rpc('increment_photo_review_count', {
+        p_photo_id: photo.id,
+      });
 
       if (photo.photoSetId) {
-        await supabase
-          .from('photo_sets')
-          .update({
-            review_count: nextReviewCount,
-          })
-          .eq('id', photo.photoSetId);
+        await supabase.rpc('increment_photo_set_review_count', {
+          p_photo_set_id: photo.photoSetId,
+        });
       }
 
       await trackEvent('critique_submitted', 'PhotoDetail', {

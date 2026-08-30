@@ -282,12 +282,9 @@ export default function TipsArchive() {
             return;
         }
 
-        const { error: countError } = await supabase
-            .from('tips')
-            .update({
-                upvotes_count: (tip.upvotes_count || 0) + 1,
-            })
-            .eq('id', tip.id);
+        const { error: countError } = await supabase.rpc('increment_tip_upvotes', {
+            p_tip_id: tip.id,
+        });
 
         if (countError) {
             console.warn('Could not update tip count:', countError.message);
