@@ -7,6 +7,20 @@
 -- typed as `text` may in some cases be better as enums/check
 -- constraints; kept as text/boolean to match how the JS client treats
 -- them (no server-side enum enforcement visible in app code).
+--
+-- This file documents the schema as originally applied. Two follow-up
+-- migrations have since been applied directly to the live project
+-- (not reflected inline above, to avoid rewriting an already-applied
+-- base) — see the "FOLLOW-UP MIGRATIONS" section at the end of this
+-- file: (1) tighten_counter_update_rls — replaces the permissive
+-- "photos_update_own_admin_or_review_count" / "vents_update_own_admin_or_counters" /
+-- "tips_update_admin_or_counter" policies below with owner-or-admin-only
+-- policies, moving counter bumps into SECURITY DEFINER RPCs instead;
+-- (2) add_signup_trigger_and_claim_invite_rpc — adds the
+-- handle_new_user trigger (populates public.profiles from auth.users
+-- on signup) and the claim_invite_code RPC that src/lib/auth.ts calls,
+-- neither of which existed in the original applied schema (signup was
+-- broken without them).
 -- =====================================================================
 
 -- Needed for gen_random_uuid()
@@ -687,3 +701,151 @@ create policy "photos_bucket_owner_delete" on storage.objects
         bucket_id = 'photos'
         and (storage.foldername(name))[1] = auth.uid()::text
     );
+
+-- =====================================================================
+-- FOLLOW-UP MIGRATIONS (applied directly to the live project after the
+-- base schema above)
+-- =====================================================================
+
+-- ---------------------------------------------------------------
+-- Migration: tighten_counter_update_rls
+-- Supersedes photos_update_own_admin_or_review_count,
+-- vents_update_own_admin_or_counters, and tips_update_admin_or_counter
+-- above with owner-or-admin-only policies. Counter bumps
+-- (review_count, upvotes, upvotes_count) now go through narrow
+-- SECURITY DEFINER RPCs instead of a direct client-side update.
+-- ---------------------------------------------------------------
+create or replace function public.increment_photo_review_count(p_photo_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.photos
+  set review_count = coalesce(review_count, 0) + 1
+  where id = p_photo_id;
+$$;
+
+create or replace function public.increment_photo_set_review_count(p_photo_set_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.photo_sets
+  set review_count = coalesce(review_count, 0) + 1
+  where id = p_photo_set_id;
+$$;
+
+create or replace function public.adjust_vent_upvotes(p_vent_id uuid, p_upvoted boolean)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.vents
+  set upvotes = greatest(0, coalesce(upvotes, 0) + case when p_upvoted then 1 else -1 end)
+  where id = p_vent_id;
+$$;
+
+create or replace function public.increment_tip_upvotes(p_tip_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.tips
+  set upvotes_count = coalesce(upvotes_count, 0) + 1
+  where id = p_tip_id;
+$$;
+
+revoke execute on function public.increment_photo_review_count(uuid) from public, anon;
+revoke execute on function public.increment_photo_set_review_count(uuid) from public, anon;
+revoke execute on function public.adjust_vent_upvotes(uuid, boolean) from public, anon;
+revoke execute on function public.increment_tip_upvotes(uuid) from public, anon;
+
+grant execute on function public.increment_photo_review_count(uuid) to authenticated;
+grant execute on function public.increment_photo_set_review_count(uuid) to authenticated;
+grant execute on function public.adjust_vent_upvotes(uuid, boolean) to authenticated;
+grant execute on function public.increment_tip_upvotes(uuid) to authenticated;
+
+drop policy if exists "photos_update_own_admin_or_review_count" on public.photos;
+create policy "photos_update_own_or_admin" on public.photos
+    for update using (auth.uid() = user_id or public.is_admin())
+    with check (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "vents_update_own_admin_or_counters" on public.vents;
+create policy "vents_update_own_or_admin" on public.vents
+    for update using (auth.uid() = user_id or public.is_admin())
+    with check (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "tips_update_admin_or_counter" on public.tips;
+create policy "tips_update_admin_only" on public.tips
+    for update using (public.is_admin())
+    with check (public.is_admin());
+
+-- ---------------------------------------------------------------
+-- Migration: add_signup_trigger_and_claim_invite_rpc
+-- src/lib/auth.ts (signUpWithProfile) expects a public.profiles row
+-- to exist immediately after auth.signUp() and calls an RPC
+-- `claim_invite_code` — neither existed in the base schema above, so
+-- every signup was broken. Verified end-to-end at the DB level by
+-- simulating auth.signUp() (an auth.users insert) and confirming the
+-- trigger populates profiles correctly and claim_invite_code both
+-- succeeds once and correctly rejects a second claim of the same code.
+-- ---------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (
+    id, display_name, username, instagram_handle, website,
+    role, custom_title, city, experience_level
+  )
+  values (
+    new.id,
+    new.raw_user_meta_data->>'display_name',
+    new.raw_user_meta_data->>'username',
+    new.raw_user_meta_data->>'instagram_handle',
+    new.raw_user_meta_data->>'website',
+    new.raw_user_meta_data->>'role',
+    new.raw_user_meta_data->>'custom_title',
+    new.raw_user_meta_data->>'city',
+    new.raw_user_meta_data->>'experience_level'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Claim an invite code atomically. Runs right after auth.signUp(), when
+-- the client may not yet have an authenticated session (email
+-- confirmation could be required) — so this is callable by anon too,
+-- same as the pre-auth invite_codes lookup policy already allows for
+-- unused codes. It only ever flips a code from unused to used.
+create or replace function public.claim_invite_code(invite_code_text text, user_id_value uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.invite_codes
+  set is_used = true, used_by = user_id_value
+  where code = invite_code_text and is_used = false;
+
+  if not found then
+    raise exception 'Invalid or already used invite code.';
+  end if;
+end;
+$$;
+
+grant execute on function public.claim_invite_code(text, uuid) to anon, authenticated;
