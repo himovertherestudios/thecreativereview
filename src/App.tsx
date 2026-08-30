@@ -21,6 +21,7 @@ import {
   Loader2,
   LogOut,
   Bell,
+  BookOpen,
 } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
@@ -44,7 +45,8 @@ const Login = lazy(() => import('./pages/Login'));
 const ChallengeSuggestion = lazy(() => import('./pages/ChallengeSuggestion'));
 const ChallengeAdmin = lazy(() => import('./pages/ChallengeAdmin'));
 const ChallengeDetail = lazy(() => import('./pages/ChallengeDetail'));
-const TipsArchive = lazy(() => import('./pages/TipsArchive'));
+const TipLibrary = lazy(() => import('./pages/TipLibrary'));
+const TipDetail = lazy(() => import('./pages/TipDetail'));
 const AnalyticsAdmin = lazy(() => import('./pages/AnalyticsAdmin'));
 const HotSeat = lazy(() => import('./pages/HotSeat'));
 const Activity = lazy(() => import('./pages/Activity'));
@@ -74,6 +76,10 @@ function isActiveRoute(pathname: string, route: string) {
 
   if (route === '/vents') {
     return pathname === '/vents' || pathname.startsWith('/vents/');
+  }
+
+  if (route === '/tips') {
+    return pathname === '/tips' || pathname.startsWith('/tips/');
   }
 
   return pathname === route;
@@ -274,6 +280,13 @@ function AppLayout({ children }: { children: React.ReactNode }) {
             label="Activity"
             active={isActiveRoute(location.pathname, '/activity')}
           />
+
+          <DesktopNavLink
+            to="/tips"
+            icon={BookOpen}
+            label="Learn"
+            active={isActiveRoute(location.pathname, '/tips')}
+          />
         </nav>
 
         <div className="mt-auto pt-6 border-t border-white/5 flex flex-col gap-2">
@@ -327,6 +340,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
         <div className="flex items-center gap-2">
+          <Link
+            to="/tips"
+            className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-brand-accent hover:border-brand-accent/30 transition"
+            aria-label="Tip Library"
+          >
+            <BookOpen size={18} />
+          </Link>
+
           <Link
             to="/activity"
             className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-brand-accent hover:border-brand-accent/30 transition"
@@ -483,7 +504,16 @@ function AppRoutes() {
           path="/tips"
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
-              <TipsArchive />
+              <TipLibrary />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tips/:id"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <TipDetail />
             </ProtectedRoute>
           }
         />
