@@ -493,10 +493,10 @@ export default function VentRoom() {
         if (error) throw error;
       }
 
-      const { error: updateError } = await supabase
-        .from('vents')
-        .update({ upvotes: nextUpvoteCount })
-        .eq('id', vent.id);
+      const { error: updateError } = await supabase.rpc('adjust_vent_upvotes', {
+        p_vent_id: vent.id,
+        p_upvoted: !hasAlreadyUpvoted,
+      });
 
       if (updateError) throw updateError;
 

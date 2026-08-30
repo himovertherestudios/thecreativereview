@@ -633,12 +633,15 @@ export default function VentDetail() {
                 if (insertError) throw insertError;
             }
 
+            const { error: rpcError } = await supabase.rpc('adjust_vent_upvotes', {
+                p_vent_id: vent.id,
+                p_upvoted: !hasUpvoted,
+            });
+
+            if (rpcError) throw rpcError;
+
             const { data: updatedVent, error: updateError } = await supabase
                 .from('vents')
-                .update({
-                    upvotes: nextUpvoteCount,
-                })
-                .eq('id', vent.id)
                 .select(
                     `
           id,
@@ -651,6 +654,7 @@ export default function VentDetail() {
           post_type
           `
                 )
+                .eq('id', vent.id)
                 .single();
 
             if (updateError) throw updateError;
