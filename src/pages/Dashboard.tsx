@@ -535,12 +535,21 @@ export default function Dashboard() {
       backgroundUrl={tipBg}
       fallbackUrl={FALLBACK_TIP_BG}
       button={
-        <Link
-          to="/tips"
-          className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
-        >
-          View tips archive <ArrowRight size={14} />
-        </Link>
+        <div className="flex flex-col gap-2">
+          <Link
+            to="/tips"
+            className="min-h-[46px] px-4 py-3 bg-brand-accent text-brand-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-all"
+          >
+            View tips archive <ArrowRight size={14} />
+          </Link>
+
+          <Link
+            to="/tips"
+            className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-brand-accent transition-colors text-center"
+          >
+            Explore the Tip Library →
+          </Link>
+        </div>
       }
     />
   );
