@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -25,30 +25,31 @@ import {
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from './lib/supabase';
+import ErrorBoundary from './components/ErrorBoundary';
 
-import Landing from './pages/Landing';
-import InviteCode from './pages/InviteCode';
-import Signup from './pages/Signup';
-import Consent from './pages/Consent';
-import StarterUpload from './pages/StarterUpload';
-import Dashboard from './pages/Dashboard';
-import ReviewFeed from './pages/ReviewFeed';
-import SubmitReview from './pages/SubmitReview';
-import PhotoDetail from './pages/PhotoDetail';
-import VentRoom from './pages/VentRoom';
-import VentDetail from './pages/VentDetail';
-import Profile from './pages/Profile';
-import Supporter from './pages/Supporter';
-import Login from './pages/Login';
-import ChallengeSuggestion from './pages/ChallengeSuggestion';
-import ChallengeAdmin from './pages/ChallengeAdmin';
-import ChallengeDetail from './pages/ChallengeDetail';
-import TipsArchive from './pages/TipsArchive';
-import AnalyticsAdmin from './pages/AnalyticsAdmin';
-import HotSeat from './pages/HotSeat';
-import Activity from './pages/Activity';
-import CultureOnboarding from './pages/CultureOnboarding';
-import RequestInvite from './pages/RequestInvite';
+const Landing = lazy(() => import('./pages/Landing'));
+const InviteCode = lazy(() => import('./pages/InviteCode'));
+const Signup = lazy(() => import('./pages/Signup'));
+const Consent = lazy(() => import('./pages/Consent'));
+const StarterUpload = lazy(() => import('./pages/StarterUpload'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ReviewFeed = lazy(() => import('./pages/ReviewFeed'));
+const SubmitReview = lazy(() => import('./pages/SubmitReview'));
+const PhotoDetail = lazy(() => import('./pages/PhotoDetail'));
+const VentRoom = lazy(() => import('./pages/VentRoom'));
+const VentDetail = lazy(() => import('./pages/VentDetail'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Supporter = lazy(() => import('./pages/Supporter'));
+const Login = lazy(() => import('./pages/Login'));
+const ChallengeSuggestion = lazy(() => import('./pages/ChallengeSuggestion'));
+const ChallengeAdmin = lazy(() => import('./pages/ChallengeAdmin'));
+const ChallengeDetail = lazy(() => import('./pages/ChallengeDetail'));
+const TipsArchive = lazy(() => import('./pages/TipsArchive'));
+const AnalyticsAdmin = lazy(() => import('./pages/AnalyticsAdmin'));
+const HotSeat = lazy(() => import('./pages/HotSeat'));
+const Activity = lazy(() => import('./pages/Activity'));
+const CultureOnboarding = lazy(() => import('./pages/CultureOnboarding'));
+const RequestInvite = lazy(() => import('./pages/RequestInvite'));
 
 
 type AppNavLinkProps = {
@@ -449,6 +450,7 @@ function AppRoutes() {
 
   return (
     <AppLayout>
+      <Suspense fallback={<AuthLoadingScreen />}>
       <Routes>
         <Route
           path="/"
@@ -674,14 +676,17 @@ function AppRoutes() {
           }
         />
       </Routes>
+      </Suspense>
     </AppLayout>
   );
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
