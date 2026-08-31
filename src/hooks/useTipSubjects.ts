@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchTipSubjectCounts,
   fetchTipSubjects,
@@ -61,10 +61,14 @@ export function useTipSubjects() {
     };
   }, []);
 
-  const subjectIdBySlug = subjects.reduce<Record<string, string>>((acc, subject) => {
-    acc[subject.slug] = subject.id;
-    return acc;
-  }, {});
+  const subjectIdBySlug = useMemo(
+    () =>
+      subjects.reduce<Record<string, string>>((acc, subject) => {
+        acc[subject.slug] = subject.id;
+        return acc;
+      }, {}),
+    [subjects]
+  );
 
   const refresh = useCallback(async () => {
     subjectsCache = null;
