@@ -298,12 +298,12 @@ export default function TipLibrary() {
             What do you need help with?
           </p>
 
-          <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+          <div className="grid grid-cols-2 gap-2.5 md:flex md:gap-2.5 md:overflow-x-auto md:no-scrollbar md:pb-1">
             {subjectsLoading &&
               Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={index}
-                  className="min-w-[140px] h-[76px] rounded-2xl bg-brand-gray border border-white/10 animate-pulse flex-shrink-0"
+                  className="h-[76px] rounded-2xl bg-brand-gray border border-white/10 animate-pulse md:min-w-[140px] md:flex-shrink-0"
                 />
               ))}
 
@@ -316,7 +316,7 @@ export default function TipLibrary() {
                     key={subject.slug}
                     type="button"
                     onClick={() => handleSelectSubject(subject.slug)}
-                    className={`min-w-[150px] flex-shrink-0 rounded-2xl border p-4 text-left transition-all ${
+                    className={`rounded-2xl border p-4 text-left transition-all md:min-w-[150px] md:flex-shrink-0 ${
                       isActive
                         ? 'bg-brand-accent border-brand-accent text-brand-black'
                         : 'bg-brand-gray border-white/10 text-white hover:border-brand-accent/40'
