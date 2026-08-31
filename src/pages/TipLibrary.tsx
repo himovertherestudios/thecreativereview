@@ -56,7 +56,7 @@ const SORT_OPTIONS: { value: TipSort; label: string }[] = [
   { value: 'day', label: 'Day Order' },
 ];
 
-function TipCardTile({
+function SpotlightCard({
   tip,
   onOpen,
   isSaved,
@@ -67,66 +67,141 @@ function TipCardTile({
   isSaved: boolean;
   isCompleted: boolean;
 }) {
-  const isChallenge = tip.contentType === 'challenge';
-
   return (
     <motion.button
       type="button"
       onClick={onOpen}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`text-left rounded-3xl border p-5 relative overflow-hidden transition-all hover:border-brand-accent/40 ${
-        isChallenge
-          ? 'border-brand-accent/30 bg-brand-accent/[0.06]'
-          : 'border-white/10 bg-brand-gray'
-      }`}
+      className="text-left snap-start flex-shrink-0 w-[85%] sm:w-[420px] h-[210px] rounded-cr-lg relative overflow-hidden border border-white/10"
+      style={{
+        background:
+          'linear-gradient(155deg, #3a0f0f 0%, #1A1A1A 55%, #0B0B0B 100%)',
+      }}
     >
-      {isChallenge && (
-        <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-brand-accent/10 blur-3xl" />
-      )}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(circle at 85% -10%, rgba(255,59,59,0.35), transparent 55%)',
+        }}
+      />
 
-      <div className="relative z-10 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tip.subjects.slice(0, 2).map((subject) => (
-              <span
-                key={subject.slug}
-                className="px-2.5 py-1 rounded-full bg-brand-black border border-white/10 text-[9px] font-black uppercase tracking-widest text-brand-accent"
-              >
-                {subject.name}
-              </span>
-            ))}
+      <div className="relative z-10 h-full flex flex-col justify-end p-6">
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <span className="inline-flex w-fit px-3 py-1.5 rounded-full bg-brand-black border border-brand-accent/40 text-[9px] font-black uppercase tracking-widest text-brand-accent">
+            {tip.subjects[0]?.name || 'Featured'} · {CONTENT_TYPE_LABEL[tip.contentType] || 'Tip'}
+          </span>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isCompleted && <CheckCircle2 size={16} className="text-brand-accent" />}
+            {isSaved && <Bookmark size={16} className="fill-brand-accent text-brand-accent" />}
           </div>
-
-          {isSaved && <Bookmark size={16} className="fill-brand-accent text-brand-accent flex-shrink-0" />}
         </div>
 
-        <p className="text-lg font-black uppercase tracking-tight leading-tight text-white">
-          {tip.title}
-        </p>
+        <p className="font-heading text-3xl uppercase leading-[0.98] text-white">{tip.title}</p>
 
-        <p className="text-sm text-gray-400 leading-relaxed line-clamp-2">
+        <p className="text-[13px] text-gray-300 mt-1.5 line-clamp-2 leading-relaxed max-w-[85%]">
           {tip.lessonPreview}
         </p>
+      </div>
+    </motion.button>
+  );
+}
 
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500">
-            <span className={isChallenge ? 'text-brand-accent' : ''}>
-              {isChallenge && <Flame size={11} className="inline mr-1 -mt-0.5" />}
-              {CONTENT_TYPE_LABEL[tip.contentType] || 'Tip'}
-            </span>
-            <span className="text-gray-700">•</span>
-            <span>{DIFFICULTY_LABEL[tip.difficulty]}</span>
-            {tip.dayNumber && (
-              <>
-                <span className="text-gray-700">•</span>
-                <span className="text-gray-600">Day {tip.dayNumber}</span>
-              </>
-            )}
-          </div>
+function SavedRow({
+  tip,
+  onOpen,
+}: {
+  tip: TipCardData;
+  onOpen: () => void;
+}) {
+  const isChallenge = tip.contentType === 'challenge';
 
-          {isCompleted && <CheckCircle2 size={16} className="text-brand-accent flex-shrink-0" />}
-        </div>
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="text-left flex items-center gap-3 rounded-2xl bg-brand-gray border border-white/10 p-3.5 transition-all hover:border-brand-accent/30"
+    >
+      <div className="w-10 h-10 rounded-[10px] bg-brand-black flex items-center justify-center flex-shrink-0">
+        {isChallenge ? (
+          <Flame size={16} className="text-brand-accent" />
+        ) : (
+          <Bookmark size={16} className="text-brand-accent" />
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-extrabold text-white truncate">{tip.title}</p>
+        <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+          {(tip.subjects[0]?.name || tip.category) ?? 'General'} · {DIFFICULTY_LABEL[tip.difficulty]}
+        </p>
+      </div>
+
+      <Bookmark size={16} className="fill-brand-accent text-brand-accent flex-shrink-0" />
+    </button>
+  );
+}
+
+function BrowseRow({
+  tip,
+  onOpen,
+  isSaved,
+  isCompleted,
+  isFirst,
+}: {
+  tip: TipCardData;
+  onOpen: () => void;
+  isSaved: boolean;
+  isCompleted: boolean;
+  isFirst: boolean;
+}) {
+  const isChallenge = tip.contentType === 'challenge';
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onOpen}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`text-left w-full py-5 ${isFirst ? '' : 'border-t border-white/[0.08]'}`}
+    >
+      <div className="flex items-center gap-2 mb-2.5">
+        <span
+          className={`text-[9px] font-black uppercase tracking-widest ${
+            isChallenge ? 'text-brand-accent' : 'text-brand-accent'
+          }`}
+        >
+          {tip.subjects[0]?.name || tip.category || 'General'}
+        </span>
+        <span className="text-[9px] text-gray-700">·</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 flex items-center gap-1">
+          {isChallenge && <Flame size={10} />}
+          {CONTENT_TYPE_LABEL[tip.contentType] || 'Tip'}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-heading text-[22px] uppercase leading-[1.05] text-white">{tip.title}</p>
+        {isSaved && <Bookmark size={16} className="fill-brand-accent text-brand-accent flex-shrink-0 mt-1.5" />}
+      </div>
+
+      <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed line-clamp-2 max-w-lg">
+        {tip.lessonPreview}
+      </p>
+
+      <div className="flex items-center gap-2.5 mt-3">
+        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+          {DIFFICULTY_LABEL[tip.difficulty]}
+        </span>
+        {tip.dayNumber && (
+          <>
+            <span className="text-[9px] text-gray-700">·</span>
+            <span className="text-[9px] font-bold text-gray-600">Day {tip.dayNumber}</span>
+          </>
+        )}
+        {isCompleted && <CheckCircle2 size={14} className="text-brand-accent ml-1" />}
       </div>
     </motion.button>
   );
@@ -322,6 +397,11 @@ export default function TipLibrary() {
                         : 'bg-brand-gray border-white/10 text-white hover:border-brand-accent/40'
                     }`}
                   >
+                    <span
+                      className={`block w-2 h-2 rounded-full mb-2.5 ${
+                        isActive ? 'bg-brand-black' : 'bg-brand-accent'
+                      }`}
+                    />
                     <p className="text-sm font-black uppercase tracking-tight leading-tight">
                       {subject.name}
                     </p>
@@ -389,9 +469,9 @@ export default function TipLibrary() {
             <p className="text-[10px] font-black uppercase tracking-widest text-white">Featured</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-1">
             {featured.items.map((tip) => (
-              <TipCardTile
+              <SpotlightCard
                 key={tip.id}
                 tip={tip}
                 onOpen={() => handleOpenTip(tip)}
@@ -420,15 +500,9 @@ export default function TipLibrary() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2.5">
             {savedTips.tips.slice(0, 4).map((tip) => (
-              <TipCardTile
-                key={tip.id}
-                tip={tip}
-                onOpen={() => handleOpenTip(tip)}
-                isSaved
-                isCompleted={completedTipIdSet.has(tip.id)}
-              />
+              <SavedRow key={tip.id} tip={tip} onOpen={() => handleOpenTip(tip)} />
             ))}
           </div>
         </section>
@@ -487,14 +561,15 @@ export default function TipLibrary() {
           )}
 
         {!library.isLoading && !library.error && library.items.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {library.items.map((tip) => (
-              <TipCardTile
+          <div className="flex flex-col max-w-2xl">
+            {library.items.map((tip, index) => (
+              <BrowseRow
                 key={tip.id}
                 tip={tip}
                 onOpen={() => handleOpenTip(tip)}
                 isSaved={savedTipIdSet.has(tip.id)}
                 isCompleted={completedTipIdSet.has(tip.id)}
+                isFirst={index === 0}
               />
             ))}
           </div>
