@@ -21,10 +21,18 @@
     width: 100%;
     min-height: 100%;
     overflow-x: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Horizontal-scroll rows (chip carousels, photo strips) need their own
+     axis re-enabled since panning is locked to vertical globally above. */
+  .overflow-x-auto {
+    touch-action: pan-x;
   }
 
   ::selection {
