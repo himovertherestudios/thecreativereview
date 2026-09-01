@@ -36,12 +36,7 @@ export default function Landing() {
   }, [navigate]);
 
   const handleRequestInvite = () => {
-    const subject = encodeURIComponent('Creative Review Beta Code Request');
-    const body = encodeURIComponent(
-      `Name:\n\nCreative Role:\n\nInstagram/Portfolio:\n\nWhy do you want to join the beta?\n\n`
-    );
-
-    window.location.href = `mailto:himovertherebooking@gmail.com?subject=${subject}&body=${body}`;
+    window.location.href = 'http://creative-review-beta.subscribepage.io';
   };
 
   if (checkingSession) {

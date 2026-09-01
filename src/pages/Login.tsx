@@ -225,12 +225,12 @@ export default function Login() {
                                 I Have A Code
                             </Link>
 
-                            <Link
-                                to="/request-invite"
+                            <a
+                                href="http://creative-review-beta.subscribepage.io"
                                 className="min-h-[48px] py-4 px-4 rounded-2xl border border-brand-accent/30 bg-brand-accent/10 text-brand-accent hover:bg-brand-accent hover:text-brand-black text-center text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center"
                             >
                                 Request Invite
-                            </Link>
+                            </a>
                         </div>
                     </form>
                 </motion.div>
