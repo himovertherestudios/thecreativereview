@@ -51,7 +51,6 @@ const AnalyticsAdmin = lazy(() => import('./pages/AnalyticsAdmin'));
 const HotSeat = lazy(() => import('./pages/HotSeat'));
 const Activity = lazy(() => import('./pages/Activity'));
 const CultureOnboarding = lazy(() => import('./pages/CultureOnboarding'));
-const RequestInvite = lazy(() => import('./pages/RequestInvite'));
 
 
 type AppNavLinkProps = {
@@ -562,8 +561,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-        <Route path="/request-invite" element={<RequestInvite />} />
 
         <Route
           path="/onboarding"
