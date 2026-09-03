@@ -51,6 +51,7 @@ const AnalyticsAdmin = lazy(() => import('./pages/AnalyticsAdmin'));
 const HotSeat = lazy(() => import('./pages/HotSeat'));
 const Activity = lazy(() => import('./pages/Activity'));
 const CultureOnboarding = lazy(() => import('./pages/CultureOnboarding'));
+const Feedback = lazy(() => import('./pages/Feedback'));
 
 
 type AppNavLinkProps = {
@@ -576,6 +577,15 @@ function AppRoutes() {
           element={
             <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
               <Activity />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute session={session} isAuthLoading={isAuthLoading}>
+              <Feedback />
             </ProtectedRoute>
           }
         />

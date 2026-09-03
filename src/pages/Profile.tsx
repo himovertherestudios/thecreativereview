@@ -15,6 +15,7 @@ import {
   X,
   ImageOff,
   Images,
+  MessageCircle,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { FAKE_USER } from '../data';
@@ -596,6 +597,16 @@ export default function Profile() {
                 {isEditingProfile ? <X size={14} /> : <Save size={14} />}
                 {isEditingProfile ? 'Close Edit' : 'Edit Profile'}
               </button>
+            )}
+
+            {isOwnProfile && (
+              <Link
+                to="/feedback"
+                className="min-h-[42px] px-4 rounded-2xl bg-brand-black border border-white/10 text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-brand-accent/50 transition-all"
+              >
+                <MessageCircle size={14} />
+                Send Feedback
+              </Link>
             )}
           </div>
 
