@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 type SubmitStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -66,6 +67,12 @@ export default function ChallengeSuggestion() {
             if (error) {
                 throw error;
             }
+
+            await trackEvent('challenge_suggested', 'ChallengeSuggestion', {
+                title_length: title.trim().length,
+                description_length: description.trim().length,
+                is_anonymous: isAnonymous,
+            });
 
             setTitle('');
             setDescription('');

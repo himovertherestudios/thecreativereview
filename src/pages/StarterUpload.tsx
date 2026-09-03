@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ContentRating, HonestyLevel } from '../types';
 import { supabase } from '../lib/supabase';
+import { trackEvent } from '../lib/analytics';
 
 interface StarterImage {
   url: string | null;
@@ -232,6 +233,14 @@ export default function StarterUpload() {
       if (profileError) {
         throw profileError;
       }
+
+      await trackEvent('starter_upload_completed', 'StarterUpload', {
+        content_rating: starterImage.rating,
+        honesty_level: starterImage.honesty,
+        category_count: starterImage.categories.length,
+        allow_anonymous: starterImage.allowAnon,
+        has_caption: starterImage.caption.trim().length > 0,
+      });
 
       navigate('/dashboard');
     } catch (error) {
